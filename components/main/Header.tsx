@@ -142,17 +142,17 @@ export default function Header({ menus, logoUrl, siteName, hasSlider = true, mem
               )}
             </button>
           )}
-
+ 
           <div className="hidden md:flex items-center gap-5 ml-2">
             
             {/* 💡 추가된 부분: 고객지원 메뉴 (제휴문의 왼쪽) */}
-            <a href="/support" className={`text-[13px] font-extrabold transition-colors whitespace-nowrap ${textClasses}`}>
+            {/* <a href="/support" className={`text-[13px] font-extrabold transition-colors whitespace-nowrap ${textClasses}`}>
               고객지원
             </a>
 
             <a href="/contact" className={`text-[13px] font-extrabold transition-colors whitespace-nowrap ${textClasses}`}>
               제휴문의
-            </a>
+            </a> */}
 
             {isLoggedIn ? (
               <div
