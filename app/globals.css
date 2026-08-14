@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato&family=Merriweather&family=Montserrat&family=Noto+Sans+KR:wght@400;700&family=Open+Sans&family=Oswald&family=Playfair+Display&family=Raleway&family=Roboto&family=Ubuntu&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-noto-sans: 'Noto Sans KR', sans-serif;
+  --font-nanum-gothic: 'Nanum Gothic', sans-serif;
+  --font-gothic-a1: 'Gothic A1', sans-serif;
+  --font-black-han-sans: 'Black Han Sans', sans-serif;
+  --font-nanum-myeongjo: 'Nanum Myeongjo', serif;
+  --font-gowun-batang: 'Gowun Batang', serif;
+  --font-jua: 'Jua', sans-serif;
+  --font-do-hyeon: 'Do Hyeon', sans-serif;
+  --font-nanum-pen-script: 'Nanum Pen Script', cursive;
+}
+
+/* 빌더나 에디터에서 문자열로 직접 폰트를 매칭할 때 사용할 클래스들 */
+.font-noto-sans-kr { font-family: var(--font-noto-sans), sans-serif; }
+.font-nanum-gothic { font-family: var(--font-nanum-gothic), sans-serif; }
+.font-gothic-a1 { font-family: var(--font-gothic-a1), sans-serif; }
+.font-black-han-sans { font-family: var(--font-black-han-sans), sans-serif; }
+.font-nanum-myeongjo { font-family: var(--font-nanum-myeongjo), serif; }
+.font-gowun-batang { font-family: var(--font-gowun-batang), serif; }
+.font-jua { font-family: var(--font-jua), sans-serif; }
+.font-do-hyeon { font-family: var(--font-do-hyeon), sans-serif; }
+.font-nanum-pen-script { font-family: var(--font-nanum-pen-script), cursive; }
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
