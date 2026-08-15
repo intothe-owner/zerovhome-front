@@ -23,7 +23,7 @@ interface BoardConfig {
   useComment: boolean;
   commentWriteLevel: number;
   showOnMain: boolean;
-  exposureOrder: number; // 💡 순서 속성 추가
+  exposureOrder: number;
   useCaptcha: boolean;
   useExtraFields: boolean;
   extraFields: ExtraField[]; 
@@ -34,15 +34,19 @@ interface BoardConfig {
   mainExposureCount: number;
   fileUploadCount: number;
   useEditor: boolean;
+  // ✨ 신규: 푸시 알림 사용 여부 필드 추가
+  usePush: boolean; 
 }
 
 const initialFormState: Partial<BoardConfig> = {
   tableName: "", boardName: "", boardType: "GENERAL", categories: "", 
   listCount: 10, pageSize: 10, readLevel: 1, writeLevel: 1, deleteLevel: 1,
-  useComment: false, commentWriteLevel: 1, showOnMain: false, exposureOrder: 0, // 💡 기본 순서 0
+  useComment: false, commentWriteLevel: 1, showOnMain: false, exposureOrder: 0,
   useCaptcha: true, useExtraFields: false, extraFields: [], 
   galleryCols: 3, galleryRows: 3, useVideo: false, videoAutoPlay: false,
-  mainExposureCount: 5, fileUploadCount: 2,useEditor: true,
+  mainExposureCount: 5, fileUploadCount: 2, useEditor: true,
+  // ✨ 신규: 푸시 알림 기본값 설정
+  usePush: false, 
 };
 
 export default function BoardConfigManager() {
@@ -74,7 +78,6 @@ export default function BoardConfigManager() {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
     } else {
-      // 💡 숫자 변환 필드에 exposureOrder 추가
       const isNumberField = ['listCount', 'pageSize', 'readLevel', 'writeLevel', 'deleteLevel', 'commentWriteLevel', 'galleryCols', 'galleryRows', 'mainExposureCount', 'fileUploadCount', 'exposureOrder'].includes(name);
       setFormData(prev => ({ ...prev, [name]: isNumberField ? Number(value) : value }));
     }
@@ -248,7 +251,6 @@ export default function BoardConfigManager() {
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
               
-              {/* 💡 메인 노출 순서 폼 영역 변경 */}
               <div className="md:col-span-3 flex flex-wrap items-center gap-6 p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" name="showOnMain" checked={formData.showOnMain} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded border-slate-300" />
@@ -298,9 +300,9 @@ export default function BoardConfigManager() {
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" name="useEditor" checked={formData.useEditor} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded border-slate-300" />
-                <span className="text-sm font-bold text-slate-700">에디터 사용 여부 (WYSIWYG 및 이미지 첨부)</span>
-              </label>
+                  <input type="checkbox" name="useEditor" checked={formData.useEditor} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded border-slate-300" />
+                  <span className="text-sm font-bold text-slate-700">에디터 사용 여부 (WYSIWYG 및 이미지 첨부)</span>
+                </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" name="useComment" checked={formData.useComment} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded border-slate-300" />
                   <span className="text-sm font-bold text-slate-700">댓글 사용 여부</span>
@@ -320,6 +322,11 @@ export default function BoardConfigManager() {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" name="useExtraFields" checked={formData.useExtraFields} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded border-slate-300" />
                   <span className="text-sm font-bold text-slate-700">추가 필드(Extra Fields) 사용</span>
+                </label>
+                {/* ✨ 신규: 새 글 작성 시 푸시 알림 발송 체크박스 */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="usePush" checked={formData.usePush || false} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded border-slate-300" />
+                  <span className="text-sm font-bold text-indigo-700">새 글 작성 시 푸시 알림 발송 (레벨 10 최고관리자 대상)</span>
                 </label>
               </div>
               

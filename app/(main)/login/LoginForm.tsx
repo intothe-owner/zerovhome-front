@@ -3,7 +3,39 @@
 import { useState } from "react";
 import { Lock, Mail, User, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { messaging, getToken } from "@/lib/firebase";
 import Link from "next/link";
+
+// 💡 (선택) 클라이언트에서 FCM 토큰을 가져오는 가상의 함수
+// 실제 구현 시 Firebase Client SDK의 getToken() 메서드를 사용해야 합니다.
+// 실제 FCM 토큰 발급 함수로 교체
+const fetchFCMTokenFromBrowser = async () => {
+  if (!messaging) return null;
+  
+  try {
+    // 1. 브라우저 알림 권한 요청
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      console.warn("알림 권한이 허용되지 않았습니다.");
+      return null;
+    }
+
+    // 2. Firebase 콘솔에서 발급받은 VAPID 키를 넣고 토큰 발급
+    const currentToken = await getToken(messaging, { 
+      vapidKey: process.env.NEXT_PUBLIC_VAPID_KEY // "B...어쩌고" 하는 긴 문자열
+    });
+
+    if (currentToken) {
+      return currentToken;
+    } else {
+      console.warn("토큰을 가져올 수 없습니다.");
+      return null;
+    }
+  } catch (error) {
+    console.error("토큰 발급 중 에러:", error);
+    return null;
+  }
+};
 
 export default function LoginForm({ settings }: { settings: any }) {
   const isEmailId = settings.useEmailAsLoginId;
@@ -12,11 +44,9 @@ export default function LoginForm({ settings }: { settings: any }) {
   const [formData, setFormData] = useState({ loginId: "", password: "" });
   const [isLoading, setIsLoading] = useState(false);
 
-  // 상태 메시지 표시용 State
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  // 입력 시 기존 에러 메시지 초기화
   const clearMessages = () => {
     setErrorMessage("");
     setSuccessMessage("");
@@ -42,15 +72,49 @@ export default function LoginForm({ settings }: { settings: any }) {
       const data = await res.json();
 
       if (data.success) {
-        // 성공 시 로컬 스토리지에 토큰 저장
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
+
+        // 💡 1. 유저 레벨이 정확히 어떤 타입/값으로 들어오는지 확인
+        console.log("확인용 로그 - 유저 레벨:", data.user.level, typeof data.user.level);
+
+        // 만약 문자열 "10"으로 들어올 수도 있으니 Number()로 변환해서 체크해 봅니다.
+        if (Number(data.user.level) === 10) {
+          console.log("레벨 10 통과! 토큰 발급 로직 진입");
+          try {
+            const fcmToken = await fetchFCMTokenFromBrowser();
+            console.log("발급받은 fcmToken:", fcmToken);
+            
+            if (fcmToken) {
+              console.log("백엔드로 POST /token 요청 시작...");
+              const tokenRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/token`, {
+                method: "POST",
+                headers: { 
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${data.token}` 
+                },
+                body: JSON.stringify({
+                  memberId: data.user.id,
+                  deviceToken: fcmToken,
+                  deviceType: "WEB",
+                  deviceId: "browser-unique-id" 
+                }),
+              });
+              
+              // 💡 2. 백엔드 응답 결과 확인
+              const tokenData = await tokenRes.json();
+              console.log("백엔드 /token 응답 결과:", tokenData);
+            }
+          } catch (tokenError) {
+            console.error("프론트엔드 푸시 토큰 처리 중 에러 발생:", tokenError);
+          }
+        }
         
-        // 성공 메시지 출력 후 메인으로 이동
-        setSuccessMessage(`${data.user.name}님 환영합니다! 메인 화면으로 이동합니다.`);
+        setSuccessMessage(`${data.user.name}님 환영합니다!`);
+        // (디버깅을 위해 잠시 딜레이를 넉넉하게 주거나 주석 처리하여 페이지가 바로 안 넘어가게 하세요)
         setTimeout(() => {
           window.location.href = "/";
-        }, 1000); // 1초 대기 후 이동
+        }, 3000); 
       } else {
         setErrorMessage(data.message || "로그인에 실패했습니다.");
       }
