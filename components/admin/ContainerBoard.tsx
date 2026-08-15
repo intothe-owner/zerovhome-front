@@ -984,9 +984,9 @@ export default function ContainerBoard({
                     style={{ top: selectedInlineImg.top - 50, left: selectedInlineImg.left }}
                     onMouseDown={(e) => {
                         e.preventDefault();
-                        e.stopPropagation(); // 💡 마우스 이벤트가 배경으로 전달되는 것 방지
+                        e.stopPropagation(); 
                     }}
-                    onClick={(e) => e.stopPropagation()} // 💡 핵심 원인 해결: 클릭 이벤트 버블링 방지
+                    onClick={(e) => e.stopPropagation()} 
                 >
                     <label className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded cursor-pointer hover:bg-indigo-700 text-xs font-bold transition-colors shadow">
                         <ImagePlus size={14} /> 이미지 변경
@@ -1002,40 +1002,38 @@ export default function ContainerBoard({
                                         if (event.target?.result) {
                                             const newImageUrl = event.target.result as string;
                                             const { elId, cellKey, node } = selectedInlineImg;
-                                            const oldSrc = node.src; // 기존 이미지의 주소
+                                            const oldSrc = node.src; 
 
-                                            // React 상태(containers)를 직접 업데이트하여 안전하게 반영
                                             setContainers(containers.map(container => ({
                                                 ...container,
                                                 columns: container.columns.map(col => ({
                                                     ...col,
                                                     elements: col.elements.map(el => {
                                                         if (el.id === elId) {
-                                                            // 1. 테이블 셀 내부인 경우
+                                                            // 💡 DOMParser 대신 가상 div를 사용하여 style 태그 유실 방지
                                                             if (cellKey && el.tableData) {
                                                                 const newCells = { ...el.tableData.cells };
                                                                 if (newCells[cellKey]) {
-                                                                    const parser = new DOMParser();
-                                                                    const doc = parser.parseFromString(newCells[cellKey].content, 'text/html');
-                                                                    const imgs = Array.from(doc.querySelectorAll('img'));
+                                                                    const tempDiv = document.createElement('div');
+                                                                    tempDiv.innerHTML = newCells[cellKey].content;
+                                                                    const imgs = Array.from(tempDiv.querySelectorAll('img'));
                                                                     const targetImg = imgs.find(img => img.src === oldSrc) || imgs[0];
                                                                     if (targetImg) {
                                                                         targetImg.setAttribute('src', newImageUrl);
-                                                                        newCells[cellKey].content = doc.body.innerHTML;
-                                                                        newCells[cellKey].file = file; // 💡 파일 객체 저장 연동
+                                                                        newCells[cellKey].content = tempDiv.innerHTML;
+                                                                        newCells[cellKey].file = file; 
                                                                     }
                                                                 }
                                                                 return { ...el, tableData: { ...el.tableData, cells: newCells } };
                                                             } 
-                                                            // 2. 일반 TEXT 또는 CARD 엘리먼트 내부인 경우
                                                             else {
-                                                                const parser = new DOMParser();
-                                                                const doc = parser.parseFromString(el.content, 'text/html');
-                                                                const imgs = Array.from(doc.querySelectorAll('img'));
+                                                                const tempDiv = document.createElement('div');
+                                                                tempDiv.innerHTML = el.content;
+                                                                const imgs = Array.from(tempDiv.querySelectorAll('img'));
                                                                 const targetImg = imgs.find(img => img.src === oldSrc) || imgs[0];
                                                                 if (targetImg) {
                                                                     targetImg.setAttribute('src', newImageUrl);
-                                                                    return { ...el, content: doc.body.innerHTML, file: file }; // 💡 파일 객체 저장 연동
+                                                                    return { ...el, content: tempDiv.innerHTML, file: file }; 
                                                                 }
                                                             }
                                                         }
@@ -1044,7 +1042,7 @@ export default function ContainerBoard({
                                                 }))
                                             })));
 
-                                            setSelectedInlineImg(null); // 업데이트 후 툴바 닫기
+                                            setSelectedInlineImg(null); 
                                         }
                                     };
                                     reader.readAsDataURL(file);
@@ -1057,31 +1055,31 @@ export default function ContainerBoard({
                             const { elId, cellKey, node } = selectedInlineImg;
                             const oldSrc = node.src;
 
-                            // 삭제 로직도 동일하게 상태를 직접 업데이트
                             setContainers(containers.map(container => ({
                                 ...container,
                                 columns: container.columns.map(col => ({
                                     ...col,
                                     elements: col.elements.map(el => {
                                         if (el.id === elId) {
+                                            // 💡 삭제 로직에도 가상 div 방식 적용
                                             if (cellKey && el.tableData) {
                                                 const newCells = { ...el.tableData.cells };
                                                 if (newCells[cellKey]) {
-                                                    const parser = new DOMParser();
-                                                    const doc = parser.parseFromString(newCells[cellKey].content, 'text/html');
-                                                    const imgs = Array.from(doc.querySelectorAll('img'));
+                                                    const tempDiv = document.createElement('div');
+                                                    tempDiv.innerHTML = newCells[cellKey].content;
+                                                    const imgs = Array.from(tempDiv.querySelectorAll('img'));
                                                     const targetImg = imgs.find(img => img.src === oldSrc) || imgs[0];
                                                     if (targetImg) targetImg.remove();
-                                                    newCells[cellKey].content = doc.body.innerHTML;
+                                                    newCells[cellKey].content = tempDiv.innerHTML;
                                                 }
                                                 return { ...el, tableData: { ...el.tableData, cells: newCells } };
                                             } else {
-                                                const parser = new DOMParser();
-                                                const doc = parser.parseFromString(el.content, 'text/html');
-                                                const imgs = Array.from(doc.querySelectorAll('img'));
+                                                const tempDiv = document.createElement('div');
+                                                tempDiv.innerHTML = el.content;
+                                                const imgs = Array.from(tempDiv.querySelectorAll('img'));
                                                 const targetImg = imgs.find(img => img.src === oldSrc) || imgs[0];
                                                 if (targetImg) targetImg.remove();
-                                                return { ...el, content: doc.body.innerHTML };
+                                                return { ...el, content: tempDiv.innerHTML };
                                             }
                                         }
                                         return el;
@@ -1089,7 +1087,7 @@ export default function ContainerBoard({
                                 }))
                             })));
 
-                            setSelectedInlineImg(null); // 삭제 후 툴바 닫기
+                            setSelectedInlineImg(null); 
                         }}
                         className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-bold transition-colors shadow"
                     >
