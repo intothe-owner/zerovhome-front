@@ -1,6 +1,6 @@
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,8 +11,21 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Next.js는 SSR(서버사이드 렌더링)을 하므로, 중복 초기화를 방지하고 브라우저 환경에서만 Messaging을 가져오도록 처리합니다.
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const messaging = typeof window !== "undefined" ? getMessaging(app) : null;
 
-export { app, messaging, getToken, onMessage };
+// ✨ 변경: 안전하게 푸시 지원 여부를 확인한 후 messaging 인스턴스 반환
+export const getFirebaseMessaging = async () => {
+  if (typeof window !== "undefined") {
+    try {
+      const supported = await isSupported();
+      if (supported) {
+        return getMessaging(app);
+      }
+    } catch (error) {
+      console.error("Firebase Messaging 지원 여부 확인 중 에러:", error);
+    }
+  }
+  return null;
+};
+
+export { app };

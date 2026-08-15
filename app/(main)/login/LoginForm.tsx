@@ -3,34 +3,32 @@
 import { useState } from "react";
 import { Lock, Mail, User, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { messaging, getToken } from "@/lib/firebase";
+import { getToken } from "firebase/messaging";
+import { getFirebaseMessaging } from "@/lib/firebase";
 import Link from "next/link";
 
-// 💡 (선택) 클라이언트에서 FCM 토큰을 가져오는 가상의 함수
-// 실제 구현 시 Firebase Client SDK의 getToken() 메서드를 사용해야 합니다.
-// 실제 FCM 토큰 발급 함수로 교체
+// 실제 FCM 토큰 발급 함수
 const fetchFCMTokenFromBrowser = async () => {
-  if (!messaging) return null;
+  const messaging = await getFirebaseMessaging();
+  
+  // 브라우저가 푸시를 지원하지 않거나 초기화 실패 시 조용히 넘어감
+  if (!messaging) {
+    console.warn("이 환경에서는 푸시 알림을 지원하지 않습니다.");
+    return null; 
+  }
   
   try {
-    // 1. 브라우저 알림 권한 요청
     const permission = await Notification.requestPermission();
     if (permission !== "granted") {
       console.warn("알림 권한이 허용되지 않았습니다.");
       return null;
     }
 
-    // 2. Firebase 콘솔에서 발급받은 VAPID 키를 넣고 토큰 발급
     const currentToken = await getToken(messaging, { 
-      vapidKey: process.env.NEXT_PUBLIC_VAPID_KEY // "B...어쩌고" 하는 긴 문자열
+      vapidKey: process.env.NEXT_PUBLIC_VAPID_KEY 
     });
 
-    if (currentToken) {
-      return currentToken;
-    } else {
-      console.warn("토큰을 가져올 수 없습니다.");
-      return null;
-    }
+    return currentToken || null;
   } catch (error) {
     console.error("토큰 발급 중 에러:", error);
     return null;
