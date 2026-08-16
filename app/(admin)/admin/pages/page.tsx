@@ -24,6 +24,7 @@ export default function VisualPageBuilder() {
     const [pageId, setPageId] = useState<number | null>(null);
     const [pageMeta, setPageMeta] = useState({ bgImage: '', bgTitle: '' });
     const [metaBgFile, setMetaBgFile] = useState<File | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     // 💡 [핵심 수정] 줄바꿈(\n)과 탭(\t)을 스페이스바 한 칸(' ')으로 변경하는 함수
     // 컴포넌트 스코프 상단에 배치하여 어디서든 사용할 수 있게 합니다.
@@ -200,6 +201,7 @@ export default function VisualPageBuilder() {
 
     const handleSave = async () => {
         if (!title.trim()) return alert("페이지 제목을 입력해주세요.");
+        setIsSaving(true);
         const formData = new FormData();
         formData.append("menuId", selectedMenuId === "0" ? "" : selectedMenuId);
         formData.append("title", title);
@@ -256,6 +258,9 @@ export default function VisualPageBuilder() {
         } catch (error) {
             console.log(error);
             alert("서버와 통신 중 오류가 발생했습니다.");
+        }finally {
+            // 💡 [추가] 저장이 끝났으므로(성공/실패 무관) 상태 해제
+            setIsSaving(false);
         }
     };
 
@@ -562,6 +567,7 @@ export default function VisualPageBuilder() {
                 selectedMenuId={selectedMenuId}
                 setSelectedMenuId={setSelectedMenuId}
                 menus={menus} title={title} setTitle={setTitle} handleSave={handleSave}
+                isSaving={isSaving}
             />
 
             <SlideManager

@@ -1,3 +1,4 @@
+// @/components/admin/PageSettings.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -11,6 +12,7 @@ interface PageSettingsProps {
     title: string;
     setTitle: (title: string) => void;
     handleSave: () => void;
+    isSaving: boolean; // 💡 [추가] 저장 중 상태를 받는 Prop
 }
 
 export default function PageSettings({
@@ -19,49 +21,40 @@ export default function PageSettings({
     menus,
     title,
     handleSave,
+    isSaving, // 💡 [추가]
 }: PageSettingsProps) {
     const [showFixedSave, setShowFixedSave] = useState(false);
     const scrollPointRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-    const updateFixedSave = () => {
-        const scrollPoint = scrollPointRef.current;
+        const updateFixedSave = () => {
+            const scrollPoint = scrollPointRef.current;
+            if (!scrollPoint) {
+                setShowFixedSave(false);
+                return;
+            }
+            const rect = scrollPoint.getBoundingClientRect();
+            setShowFixedSave(rect.top <= 40);
+        };
 
-        if (!scrollPoint) {
-            setShowFixedSave(false);
-            return;
-        }
+        updateFixedSave();
 
-        const rect = scrollPoint.getBoundingClientRect();
+        window.addEventListener("scroll", updateFixedSave, true);
+        window.addEventListener("resize", updateFixedSave);
 
-        // 기준점이 화면 상단 144px 위로 올라가면 버튼 표시
-        setShowFixedSave(rect.top <= 40);
-    };
-
-    // 처음 화면이 열렸을 때도 한 번 확인
-    updateFixedSave();
-
-    /*
-     * true를 넣어야 window뿐 아니라
-     * 내부 스크롤 영역에서 발생한 스크롤도 감지할 수 있습니다.
-     */
-    window.addEventListener("scroll", updateFixedSave, true);
-    window.addEventListener("resize", updateFixedSave);
-
-    return () => {
-        window.removeEventListener("scroll", updateFixedSave, true);
-        window.removeEventListener("resize", updateFixedSave);
-    };
-}, []);
+        return () => {
+            window.removeEventListener("scroll", updateFixedSave, true);
+            window.removeEventListener("resize", updateFixedSave);
+        };
+    }, []);
 
     return (
         <>
-            {/* absolute/invisible을 사용하지 않고 실제 스크롤 기준점으로 둡니다. */}
             <div
-    ref={scrollPointRef}
-    className="h-px w-full"
-    aria-hidden="true"
-/>
+                ref={scrollPointRef}
+                className="h-px w-full"
+                aria-hidden="true"
+            />
 
             <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-4 pt-4">
                 <div className="flex items-center gap-4">
@@ -94,27 +87,53 @@ export default function PageSettings({
                         className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 text-3xl font-extrabold text-slate-600 outline-none"
                     />
 
+                    {/* 💡 기본 저장 버튼 수정 */}
                     <button
                         type="button"
                         onClick={handleSave}
-                        className="ml-4 flex flex-shrink-0 items-center gap-2 rounded-lg bg-indigo-600 px-8 py-3 font-bold text-white shadow-md transition hover:bg-indigo-700"
+                        disabled={isSaving}
+                        className={`ml-4 flex flex-shrink-0 items-center gap-2 rounded-lg px-8 py-3 font-bold text-white shadow-md transition ${
+                            isSaving ? "bg-indigo-400 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"
+                        }`}
                     >
-                        <Save size={18} />
-                        저장하기
+                        {isSaving ? (
+                            <>
+                                <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                                저장중...
+                            </>
+                        ) : (
+                            <>
+                                <Save size={18} />
+                                저장하기
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
 
+            {/* 💡 플로팅(고정) 저장 버튼 수정 */}
             {showFixedSave && (
-    <button
-        type="button"
-        onClick={handleSave}
-        className="fixed right-6 top-20 z-[9999] flex items-center gap-2 rounded-full bg-indigo-600 px-6 py-3 font-bold text-white shadow-2xl transition-all hover:bg-indigo-700"
-    >
-        <Save size={18} />
-        저장하기
-    </button>
-)}
+                <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className={`fixed right-6 top-20 z-[9999] flex items-center gap-2 rounded-full px-6 py-3 font-bold text-white shadow-2xl transition-all ${
+                        isSaving ? "bg-indigo-400 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"
+                    }`}
+                >
+                    {isSaving ? (
+                        <>
+                            <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                            저장중...
+                        </>
+                    ) : (
+                        <>
+                            <Save size={18} />
+                            저장하기
+                        </>
+                    )}
+                </button>
+            )}
         </>
     );
 }
