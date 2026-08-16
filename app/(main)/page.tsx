@@ -9,7 +9,7 @@ export default async function MainPage() {
 
   try {
     // 1. 메인 빌더 페이지 데이터 페칭
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pages`, { cache: "no-store" });
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pages/0`, { cache: "no-store" });
     const json = await res.json();
     if (json.success) {
       mainPageData = json.data.find((p: any) => p.menuId === null);
