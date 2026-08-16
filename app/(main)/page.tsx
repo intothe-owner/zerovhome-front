@@ -3,6 +3,9 @@ import Link from "next/link";
 import BlockRenderer from "@/components/main/BlockRenderer";
 import MainSlider from "@/components/main/MainSlider";
 
+// 💡 [추가] Next.js 서버 컴포넌트에서 무조건 최신 데이터를 가져오도록(캐시 무시) 강제합니다.
+export const dynamic = "force-dynamic";
+
 export default async function MainPage() {
   let mainPageData = null;
   let mainBoardsWithPosts: any[] = [];
@@ -11,8 +14,10 @@ export default async function MainPage() {
     // 1. 메인 빌더 페이지 데이터 페칭
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pages/0`, { cache: "no-store" });
     const json = await res.json();
+    
     if (json.success) {
-      mainPageData = json.data.find((p: any) => p.menuId === null);
+      // 💡 [핵심 수정] json.data는 단일 객체이므로 .find()를 쓰지 않고 그대로 할당합니다.
+      mainPageData = json.data;
     }
 
     // 💡 2. 메인에 노출될 게시판 설정들 불러오기 (exposureOrder 오름차순 정렬)
@@ -55,7 +60,8 @@ export default async function MainPage() {
         <BlockRenderer blocks={mainPageData.contentBlocks} />
       )}
 
-      {/* 💡 메인 노출 게시판 렌더링 영역 */}
+      {/* 메인 노출 게시판 렌더링 영역 */}
+      {/* ... (이하 기존 코드 동일) */}
       {mainBoardsWithPosts.length > 0 && (
         <div className="w-full max-w-6xl mx-auto px-4 mt-16 flex flex-col gap-16">
           {mainBoardsWithPosts.map(board => (
