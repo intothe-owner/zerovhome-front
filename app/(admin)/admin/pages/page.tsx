@@ -137,55 +137,65 @@ export default function VisualPageBuilder() {
     const loadPageData = async (menuId: string) => {
         
         if (menuId === "") {
-            setPageId(null); setContainers([]); setSlides([]); setSliderType("none"); return;
+            setPageId(null); setContainers([]); setSlides([]); setSliderType("none"); 
+            setPageMeta({ bgImage: '', bgTitle: '' });
+            return;
         }
 
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pages/${menuId}`);
             const json = await res.json();
             
-            if (json.success) {
-                // 💡 [수정] 백엔드에서 보내주는 json.data는 이미 단일 객체(Page)이므로 .find()를 쓸 필요가 없습니다.
+            // 💡 json.success가 true이고 데이터가 있을 때만 페이지 렌더링
+            if (json.success && json.data) {
                 const page = json.data;
 
-                if (page) {
-                    setPageId(page.id);
+                setPageId(page.id);
 
-                    // 💡 저장된 데이터 불러올 때도 여백 정리 적용
-                    const cleanedContainers = (page.contentBlocks || []).map((container: ContainerNode) => ({
-                        ...container,
-                        columns: container.columns.map(col => ({
-                            ...col,
-                            elements: col.elements.map(el => ({
-                                ...el,
-                                content: cleanHtml(el.content)
-                            }))
+                const cleanedContainers = (page.contentBlocks || []).map((container: ContainerNode) => ({
+                    ...container,
+                    columns: container.columns.map(col => ({
+                        ...col,
+                        elements: col.elements.map(el => ({
+                            ...el,
+                            content: cleanHtml(el.content)
                         }))
-                    }));
-                    setContainers(cleanedContainers);
+                    }))
+                }));
+                setContainers(cleanedContainers);
 
-                    const savedMeta = page.pageMeta || { bgImage: '', bgTitle: '' };
-                    setPageMeta(savedMeta);
+                const savedMeta = page.pageMeta || { bgImage: '', bgTitle: '' };
+                setPageMeta(savedMeta);
 
-                    if (page.sliderData && page.sliderData.length > 0) {
-                        setSlides(page.sliderData);
-                        setSliderType(page.sliderData[0].type || "image");
-                    }
-                    else if (savedMeta.bgImage || savedMeta.bgTitle) {
-                        setSlides([]);
-                        setSliderType("header");
-                    }
-                    else {
-                        setSlides([]);
-                        setSliderType("none");
-                    }
-                } else {
-                    // 데이터가 null일 경우 초기화
-                    setPageId(null); setContainers([]); setSlides([]); setSliderType("none");
-                    setPageMeta({ bgImage: '', bgTitle: '' });
+                if (page.sliderData && page.sliderData.length > 0) {
+                    setSlides(page.sliderData);
+                    setSliderType(page.sliderData[0].type || "image");
                 }
+                else if (savedMeta.bgImage || savedMeta.bgTitle) {
+                    setSlides([]);
+                    setSliderType("header");
+                }
+                else {
+                    setSlides([]);
+                    setSliderType("none");
+                }
+            } else {
+                // 💡 [추가된 부분] 페이지가 존재하지 않거나(success: false) 데이터가 없을 때 이전 상태 지우기
+                setPageId(null); 
+                setContainers([]); 
+                setSlides([]); 
+                setSliderType("none");
+                setPageMeta({ bgImage: '', bgTitle: '' });
             }
-        } catch (error) { console.error("데이터 로딩 실패:", error); }
+        } catch (error) { 
+            console.error("데이터 로딩 실패:", error); 
+            // 💡 통신 오류 시에도 이전 페이지 내용이 남지 않도록 초기화
+            setPageId(null); 
+            setContainers([]); 
+            setSlides([]); 
+            setSliderType("none");
+            setPageMeta({ bgImage: '', bgTitle: '' });
+        }
     };
 
     const handleSave = async () => {
