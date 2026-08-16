@@ -32,6 +32,7 @@ export default function VisualPageBuilder() {
         return html
             .replace(/[\r\n\t]+/g, ' ') // 1. 엔터, 캐리지리턴, 탭을 공백 1칸으로 치환
             .replace(/\s{2,}/g, ' ')    // 2. 연속된 2칸 이상의 공백을 1칸으로 압축
+            .replace(/>\s+</g, '><')    // 💡 [추가] 태그와 태그 사이의 공백 완전히 제거
             .trim();
     };
 
@@ -132,56 +133,61 @@ export default function VisualPageBuilder() {
     useEffect(() => { loadPageData(selectedMenuId); }, [selectedMenuId]);
 
     const loadPageData = async (menuId: string) => {
+        
         if (menuId === "") {
             setPageId(null); setContainers([]); setSlides([]); setSliderType("none"); return;
         }
+
         try {
-            // 💡 전체 목록이 아닌, 선택된 menuId에 해당하는 단일 페이지만 조회하도록 변경
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pages/${menuId}`);
             const json = await res.json();
+            if (json.success) {
+                const targetMenuId = menuId === "0" ? null : Number(menuId);
+                const targetMenu = menus.find(m => m.id === targetMenuId);
+                let page = undefined;
+                if (targetMenu && targetMenu.url) {
+                    const sharedMenuIds = menus.filter(m => m.url === targetMenu.url).map(m => m.id);
+                    page = json.data.find((p: any) => p.menuId !== null && sharedMenuIds.includes(p.menuId));
+                } else {
+                    page = json.data.find((p: any) => p.menuId === targetMenuId);
+                }
+                if (page) {
+                    setPageId(page.id);
 
-            // 백엔드의 GET /:id API는 일치하는 데이터를 객체(단일 데이터)로 반환합니다.
-            if (json.success && json.data) {
-                const page = json.data;
-
-                setPageId(page.id);
-
-                // 💡 저장된 데이터 불러올 때도 여백 정리 적용
-                const cleanedContainers = (page.contentBlocks || []).map((container: ContainerNode) => ({
-                    ...container,
-                    columns: container.columns.map((col: any) => ({ // 타입 에러 방지 위해 any 혹은 ColumnNode 사용
-                        ...col,
-                        elements: col.elements.map((el: any) => ({
-                            ...el,
-                            content: cleanHtml(el.content)
+                    // 💡 저장된 데이터 불러올 때도 여백 정리 적용
+                    const cleanedContainers = (page.contentBlocks || []).map((container: ContainerNode) => ({
+                        ...container,
+                        columns: container.columns.map(col => ({
+                            ...col,
+                            elements: col.elements.map(el => ({
+                                ...el,
+                                content: cleanHtml(el.content)
+                            }))
                         }))
-                    }))
-                }));
-                setContainers(cleanedContainers);
+                    }));
+                    setContainers(cleanedContainers);
 
-                const savedMeta = page.pageMeta || { bgImage: '', bgTitle: '' };
-                setPageMeta(savedMeta);
+                    const savedMeta = page.pageMeta || { bgImage: '', bgTitle: '' };
+                    setPageMeta(savedMeta);
 
-                if (page.sliderData && page.sliderData.length > 0) {
-                    setSlides(page.sliderData);
-                    setSliderType(page.sliderData[0].type || "image");
+                    if (page.sliderData && page.sliderData.length > 0) {
+                        setSlides(page.sliderData);
+                        setSliderType(page.sliderData[0].type || "image");
+                    }
+                    else if (savedMeta.bgImage || savedMeta.bgTitle) {
+                        setSlides([]);
+                        setSliderType("header");
+                    }
+                    else {
+                        setSlides([]);
+                        setSliderType("none");
+                    }
+                } else {
+                    setPageId(null); setContainers([]); setSlides([]); setSliderType("none");
+                    setPageMeta({ bgImage: '', bgTitle: '' });
                 }
-                else if (savedMeta.bgImage || savedMeta.bgTitle) {
-                    setSlides([]);
-                    setSliderType("header");
-                }
-                else {
-                    setSlides([]);
-                    setSliderType("none");
-                }
-            } else {
-                // 해당 메뉴에 매핑된 페이지가 없거나(404) 실패한 경우 화면 초기화
-                setPageId(null); setContainers([]); setSlides([]); setSliderType("none");
-                setPageMeta({ bgImage: '', bgTitle: '' });
             }
-        } catch (error) { 
-            console.error("데이터 로딩 실패:", error); 
-        }
+        } catch (error) { console.error("데이터 로딩 실패:", error); }
     };
 
     const handleSave = async () => {
