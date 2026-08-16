@@ -132,6 +132,8 @@ export default function VisualPageBuilder() {
 
     useEffect(() => { loadPageData(selectedMenuId); }, [selectedMenuId]);
 
+    // @/components/main/VisualPageBuilder.tsx
+
     const loadPageData = async (menuId: string) => {
         
         if (menuId === "") {
@@ -141,16 +143,11 @@ export default function VisualPageBuilder() {
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pages/${menuId}`);
             const json = await res.json();
+            
             if (json.success) {
-                const targetMenuId = menuId === "0" ? null : Number(menuId);
-                const targetMenu = menus.find(m => m.id === targetMenuId);
-                let page = undefined;
-                if (targetMenu && targetMenu.url) {
-                    const sharedMenuIds = menus.filter(m => m.url === targetMenu.url).map(m => m.id);
-                    page = json.data.find((p: any) => p.menuId !== null && sharedMenuIds.includes(p.menuId));
-                } else {
-                    page = json.data.find((p: any) => p.menuId === targetMenuId);
-                }
+                // 💡 [수정] 백엔드에서 보내주는 json.data는 이미 단일 객체(Page)이므로 .find()를 쓸 필요가 없습니다.
+                const page = json.data;
+
                 if (page) {
                     setPageId(page.id);
 
@@ -183,6 +180,7 @@ export default function VisualPageBuilder() {
                         setSliderType("none");
                     }
                 } else {
+                    // 데이터가 null일 경우 초기화
                     setPageId(null); setContainers([]); setSlides([]); setSliderType("none");
                     setPageMeta({ bgImage: '', bgTitle: '' });
                 }
