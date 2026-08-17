@@ -168,7 +168,16 @@ export default function BlockRenderer({ blocks }: { blocks: ContainerNode[] }) {
 
                   {/* 2. 이미지 엘리먼트 */}
                   {el.type === "IMAGE" && el.content && (
-                    <img src={el.content} alt="Block Image" className="max-w-full h-auto object-cover rounded-lg shadow-sm" />
+                    <img 
+                      src={el.content} 
+                      alt="Block Image" 
+                      style={{
+                        width: el.styles?.width === "auto" ? "100%" : (el.styles?.width || "100%"),
+                        height: el.styles?.height === "auto" ? "auto" : (el.styles?.height || "auto"),
+                        objectFit: el.styles?.keepAspectRatio === false ? "fill" : "cover"
+                      }}
+                      className="max-w-full rounded-lg shadow-sm" 
+                    />
                   )}
 
                   {/* 3. 비디오 엘리먼트 */}

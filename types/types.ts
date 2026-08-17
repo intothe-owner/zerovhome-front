@@ -22,11 +22,14 @@ export interface TextStyles {
     textAlign: "left" | "center" | "right" | "justify";
     layerAlign: "flex-start" | "center" | "flex-end";
     linkUrl: string;
-    width?: number | "auto";
-    height?: number | "auto";
+    // 💡 변경된 부분: 문자열(string)도 허용하도록 수정
+    width?: string | number; 
+    height?: string | number;
     fontWeight?: "normal" | "bold";
     fontStyle?: "normal" | "italic";
     textDecoration?: "none" | "underline";
+    keepAspectRatio?: boolean;
+    
 }
 
 export interface ButtonStyles {
@@ -68,6 +71,7 @@ export interface ElementNode {
     tableData?: TableData;
     file?: File;
     animation?: AnimationConfig;
+    keepAspectRatio?:boolean;
 }
 
 export interface ColumnNode {

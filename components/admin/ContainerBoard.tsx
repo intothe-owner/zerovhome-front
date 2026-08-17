@@ -133,7 +133,7 @@ export default function ContainerBoard({
         dragItem.current = { containerId, columnId, elementIndex };
         setIsDraggingGlobal(true);
         e.dataTransfer.effectAllowed = "move";
-        
+
         const target = e.target as HTMLElement;
         setTimeout(() => {
             target.classList.add("opacity-50", "border-dashed", "border-2", "border-indigo-500");
@@ -168,7 +168,7 @@ export default function ContainerBoard({
         const newContainers = [...containers];
         const sourceContainer = newContainers.find(c => c.id === sourceContainerId);
         const targetContainer = newContainers.find(c => c.id === targetContainerId);
-        
+
         if (!sourceContainer || !targetContainer) return;
 
         const sourceColumn = sourceContainer.columns.find(c => c.id === sourceColumnId);
@@ -226,7 +226,7 @@ export default function ContainerBoard({
                             <div key={column.id} className={`${getWidthClass(column.width)} flex-shrink-0 flex flex-col gap-1 relative`} style={{ width: `calc(${eval(column.width) * 100}% - 0.5rem)` }}>
 
                                 {column.elements.length === 0 && (
-                                    <div 
+                                    <div
                                         className="h-20 border-2 border-dashed border-slate-300 rounded flex items-center justify-center text-slate-400"
                                         onDragEnter={(e) => handleDragEnter(e, container.id, column.id, 0)}
                                         onDragLeave={handleDragLeave}
@@ -241,8 +241,8 @@ export default function ContainerBoard({
                                     const isActive = activeElementId === el.id;
 
                                     return (
-                                        <div 
-                                            key={el.id} 
+                                        <div
+                                            key={el.id}
                                             draggable
                                             onDragStart={(e) => handleDragStart(e, container.id, column.id, index)}
                                             onDragEnter={(e) => handleDragEnter(e, container.id, column.id, index)}
@@ -250,7 +250,7 @@ export default function ContainerBoard({
                                             onDragOver={(e) => e.preventDefault()}
                                             onDrop={(e) => handleDrop(e, container.id, column.id, index)}
                                             onDragEnd={handleDragEnd}
-                                            className={`element-box relative flex w-full transition-transform ${el.type === 'TEXT' ? 'py-1 px-4' : 'p-4'} ${isDraggingGlobal ? 'cursor-grabbing' : 'cursor-grab'} hover:bg-slate-100/50`} 
+                                            className={`element-box relative flex w-full transition-transform ${el.type === 'TEXT' ? 'py-1 px-4' : 'p-4'} ${isDraggingGlobal ? 'cursor-grabbing' : 'cursor-grab'} hover:bg-slate-100/50`}
                                             style={{ justifyContent: el.styles?.layerAlign || 'flex-start' }}
                                         >
 
@@ -420,53 +420,186 @@ export default function ContainerBoard({
                                             )}
 
                                             {/* 2. IMAGE Element */}
+                                            {/* 2. IMAGE Element */}
                                             {el.type === "IMAGE" && (
-                                                <div className="w-full relative group hover:outline outline-2 outline-indigo-200 rounded ml-4" onMouseDown={(e) => { e.stopPropagation(); setActiveElementId(el.id); }}>
-                                                    {el.content ? (
-                                                        <div className="relative border rounded overflow-hidden">
-                                                            <img src={el.content} alt="업로드/생성 이미지" className="w-full h-auto object-cover max-h-64 min-h-[100px] bg-slate-100" />
+                                                <div className="w-[calc(100%-1rem)] relative group ml-4" onMouseDown={(e) => { e.stopPropagation(); setActiveElementId(el.id); }}>
 
-                                                            {el.content.includes("pollinations.ai") && (
-                                                                <div className="absolute top-0 left-0 w-full h-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity gap-3">
-                                                                    <label className="flex items-center gap-1 bg-white text-slate-800 px-3 py-1.5 rounded text-xs font-bold cursor-pointer shadow hover:bg-slate-100">
-                                                                        <ImagePlus size={14} /> 직접 첨부하기
+                                                    {/* 💡 상단 툴바: 크기 직접 입력(px, %) 및 비율 유지 체크박스 */}
+                                                    {isActive && (
+                                                        <div className="absolute -top-16 left-0 bg-white rounded-lg shadow-xl border border-slate-200 px-3 py-2 flex items-center gap-3 z-50 whitespace-nowrap element-toolbar">
+
+                                                            {/* 가로 입력 */}
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="text-[10px] font-bold text-slate-500">W</span>
+                                                                <input
+                                                                    type="number"
+                                                                    value={parseFloat(String(el.styles?.width || "")) || ""}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        const wUnit = String(el.styles?.width || "100%").includes('%') ? '%' : 'px';
+                                                                        const hUnit = String(el.styles?.height || "auto").includes('%') ? '%' : 'px';
+                                                                        const wNum = parseFloat(String(el.styles?.width || ""));
+                                                                        const hNum = parseFloat(String(el.styles?.height || ""));
+                                                                        const isLocked = el.styles?.keepAspectRatio !== false;
+
+                                                                        updateElementStyle(container.id, column.id, el.id, "width", val ? val + wUnit : "auto");
+
+                                                                        // 비율 고정이고 양쪽 다 단위가 같을 때 자동 계산
+                                                                        if (isLocked && val && wNum && hNum && wUnit === hUnit) {
+                                                                            const ratio = hNum / wNum;
+                                                                            updateElementStyle(container.id, column.id, el.id, "height", String(Math.round(Number(val) * ratio)) + hUnit);
+                                                                        }
+                                                                    }}
+                                                                    className="w-14 text-center text-xs border border-slate-200 rounded py-0.5 outline-none"
+                                                                    placeholder="auto"
+                                                                />
+                                                                <select
+                                                                    value={String(el.styles?.width || "100%").includes('%') ? '%' : 'px'}
+                                                                    onChange={(e) => {
+                                                                        const wNum = parseFloat(String(el.styles?.width || ""));
+                                                                        updateElementStyle(container.id, column.id, el.id, "width", wNum ? wNum + e.target.value : "auto");
+                                                                    }}
+                                                                    className="text-xs border border-slate-200 rounded p-0.5 outline-none bg-slate-50 cursor-pointer"
+                                                                >
+                                                                    <option value="px">px</option>
+                                                                    <option value="%">%</option>
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="w-px h-4 bg-slate-300" />
+
+                                                            {/* 💡 비율 유지 체크박스 (가로 100% 시 비활성화) */}
+                                                            <label className={`flex items-center gap-1 text-[10px] font-bold ${String(el.styles?.width || "100%") === "100%" ? "text-slate-400 opacity-50 cursor-not-allowed" : "text-slate-600 cursor-pointer hover:text-indigo-600"}`}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={el.styles?.keepAspectRatio !== false}
+                                                                    onChange={(e) => updateElementStyle(container.id, column.id, el.id, "keepAspectRatio", e.target.checked)}
+                                                                    className={`accent-indigo-500 ${String(el.styles?.width || "100%") === "100%" ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                                                    disabled={String(el.styles?.width || "100%") === "100%"}
+                                                                />
+                                                                비율 고정
+                                                            </label>
+
+                                                            <div className="w-px h-4 bg-slate-300" />
+
+                                                            {/* 💡 세로 입력 (가로 100% 시 비활성화) */}
+                                                            <div className={`flex items-center gap-1 ${String(el.styles?.width || "100%") === "100%" ? 'opacity-50' : ''}`}>
+                                                                <span className="text-[10px] font-bold text-slate-500">H</span>
+                                                                <input
+                                                                    type="number"
+                                                                    value={parseFloat(String(el.styles?.height || "")) || ""}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        const wUnit = String(el.styles?.width || "100%").includes('%') ? '%' : 'px';
+                                                                        const hUnit = String(el.styles?.height || "auto").includes('%') ? '%' : 'px';
+                                                                        const wNum = parseFloat(String(el.styles?.width || ""));
+                                                                        const hNum = parseFloat(String(el.styles?.height || ""));
+                                                                        const isLocked = el.styles?.keepAspectRatio !== false;
+
+                                                                        updateElementStyle(container.id, column.id, el.id, "height", val ? val + hUnit : "auto");
+
+                                                                        // 비율 고정이고 양쪽 다 단위가 같을 때 자동 계산
+                                                                        if (isLocked && val && wNum && hNum && wUnit === hUnit) {
+                                                                            const ratio = wNum / hNum;
+                                                                            updateElementStyle(container.id, column.id, el.id, "width", String(Math.round(Number(val) * ratio)) + wUnit);
+                                                                        }
+                                                                    }}
+                                                                    className={`w-14 text-center text-xs border border-slate-200 rounded py-0.5 outline-none ${String(el.styles?.width || "100%") === "100%" ? 'bg-slate-100 cursor-not-allowed text-slate-400' : ''}`}
+                                                                    placeholder="auto"
+                                                                    disabled={String(el.styles?.width || "100%") === "100%"}
+                                                                />
+                                                                <select
+                                                                    value={String(el.styles?.height || "auto").includes('%') ? '%' : 'px'}
+                                                                    onChange={(e) => {
+                                                                        const hNum = parseFloat(String(el.styles?.height || ""));
+                                                                        updateElementStyle(container.id, column.id, el.id, "height", hNum ? hNum + e.target.value : "auto");
+                                                                    }}
+                                                                    className={`text-xs border border-slate-200 rounded p-0.5 outline-none ${String(el.styles?.width || "100%") === "100%" ? 'bg-slate-100 cursor-not-allowed text-slate-400' : 'bg-slate-50 cursor-pointer'}`}
+                                                                    disabled={String(el.styles?.width || "100%") === "100%"}
+                                                                >
+                                                                    <option value="px">px</option>
+                                                                    <option value="%">%</option>
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="w-px h-4 bg-slate-300" />
+                                                            
+                                                            {/* 기타 액션 버튼 */}
+                                                            <button onClick={(e) => { e.preventDefault(); openAnimModal(el, 'element', container.id, column.id); }} className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600" title="애니메이션 효과">
+                                                                <Wand2 size={14} /> 애니
+                                                            </button>
+                                                            <button onClick={() => deleteElement(container.id, column.id, el.id)} className="text-slate-500 hover:text-red-500" title="삭제">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {/* 크기 조절을 위한 Wrapper */}
+                                                    <div
+                                                        id={`element-${el.id}`}
+                                                        className={`relative inline-block max-w-full ${isActive ? 'outline outline-2 outline-[#00d0d0]' : 'hover:outline outline-2 outline-indigo-200'} rounded`}
+                                                        style={{
+                                                            width: el.styles?.width === "auto" ? "100%" : (el.styles?.width ? String(el.styles.width) : "100%"),
+                                                            height: el.styles?.height === "auto" ? "auto" : (el.styles?.height ? String(el.styles.height) : "auto"),
+                                                            maxWidth: "100%"
+                                                        }}
+                                                    >
+                                                        {/* 크기 조절 모서리 점 (드래그) */}
+                                                        {isActive && (
+                                                            <>
+                                                                <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'nw')} className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nwse-resize z-10" />
+                                                                <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'ne')} className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nesw-resize z-10" />
+                                                                <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'sw')} className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nesw-resize z-10" />
+                                                                <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'se')} className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nwse-resize z-10" />
+                                                            </>
+                                                        )}
+
+                                                        {el.content ? (
+                                                            <div className="relative border rounded overflow-hidden w-full h-full">
+                                                                <img
+                                                                    src={el.content}
+                                                                    alt="업로드/생성 이미지"
+                                                                    className={`w-full h-full min-h-[50px] bg-slate-100 ${el.styles?.keepAspectRatio === false ? 'object-fill' : 'object-cover'}`}
+                                                                />
+
+                                                                {/* AI 기능 */}
+                                                                {el.content.includes("pollinations.ai") && (
+                                                                    <div className="absolute top-0 left-0 w-full h-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity gap-3">
+                                                                        <label className="flex items-center gap-1 bg-white text-slate-800 px-3 py-1.5 rounded text-xs font-bold cursor-pointer shadow hover:bg-slate-100">
+                                                                            <ImagePlus size={14} /> 직접 첨부하기
+                                                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                                                                if (e.target.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.target.files[0]);
+                                                                            }} />
+                                                                        </label>
+                                                                        {setAiModalOpen && (
+                                                                            <button onClick={(e) => { e.stopPropagation(); setAiModalOpen('IMAGE', el.id, ''); }} className="flex items-center gap-1 bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow hover:bg-purple-700">
+                                                                                <Sparkles size={14} /> AI로 다시 그리기
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* 우측 상단 이미지 변경 도구 */}
+                                                                <div className="absolute top-2 right-2 flex items-center gap-2 z-20">
+                                                                    <label className="flex items-center gap-1 p-1.5 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 cursor-pointer transition-colors" title="이미지 변경">
+                                                                        <ImagePlus size={14} />
+                                                                        <span className="text-xs font-bold px-1 cursor-pointer">변경</span>
                                                                         <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                                                                             if (e.target.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.target.files[0]);
                                                                         }} />
                                                                     </label>
-                                                                    {setAiModalOpen && (
-                                                                        <button onClick={(e) => { e.stopPropagation(); setAiModalOpen('IMAGE', el.id, ''); }} className="flex items-center gap-1 bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow hover:bg-purple-700">
-                                                                            <Sparkles size={14} /> AI로 다시 그리기
-                                                                        </button>
-                                                                    )}
                                                                 </div>
-                                                            )}
-
-                                                            <div className="absolute top-2 right-2 flex items-center gap-2 z-20">
-                                                                <label className="flex items-center gap-1 p-1.5 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 cursor-pointer transition-colors" title="이미지 변경">
-                                                                    <ImagePlus size={14} />
-                                                                    <span className="text-xs font-bold px-1 cursor-pointer">변경</span>
-                                                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                                                                        if (e.target.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.target.files[0]);
-                                                                    }} />
-                                                                </label>
-                                                                <button onClick={(e) => { e.stopPropagation(); openAnimModal(el, 'element', container.id, column.id); }} className="p-1.5 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 transition-colors" title="애니메이션 설정">
-                                                                    <Wand2 size={14} />
-                                                                </button>
-                                                                <button onClick={() => deleteElement(container.id, column.id, el.id)} className="p-1.5 bg-red-600 text-white rounded shadow hover:bg-red-700 transition-colors" title="삭제">
-                                                                    <Trash2 size={14} />
-                                                                </button>
                                                             </div>
-                                                        </div>
-                                                    ) : (
-                                                        <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.dataTransfer.files[0]); }} className="h-40 bg-slate-50 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-300 rounded cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/20 transition w-full">
-                                                            <Upload size={28} className="mb-2 text-indigo-500" />
-                                                            <span className="text-xs font-bold text-slate-700">이미지를 드래그하거나 클릭하여 업로드</span>
-                                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(container.id, column.id, el.id, e.target.files[0])} />
-                                                        </label>
-                                                    )}
+                                                        ) : (
+                                                            <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.dataTransfer.files[0]); }} className="h-full min-h-[160px] bg-slate-50 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-300 rounded cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/20 transition w-full">
+                                                                <Upload size={28} className="mb-2 text-indigo-500" />
+                                                                <span className="text-xs font-bold text-slate-700">이미지를 드래그하거나 클릭하여 업로드</span>
+                                                                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(container.id, column.id, el.id, e.target.files[0])} />
+                                                            </label>
+                                                        )}
+                                                    </div>
 
-                                                    {/* URL 링크 설정 창 */}
+                                                    {/* 링크 입력 창 */}
                                                     <div className="mt-2 flex items-center gap-2 bg-slate-50 p-1.5 border border-slate-200 rounded">
                                                         <LinkIcon size={14} className="text-slate-400" />
                                                         <input
@@ -556,7 +689,7 @@ export default function ContainerBoard({
 
                                                             <input type="text" value={el.buttonStyles.text} onChange={(e) => updateElementProps(container.id, column.id, el.id, 'buttonStyles', 'text', e.target.value)} className="w-20 text-xs border border-slate-200 rounded px-1 py-1" title="버튼 텍스트" />
                                                             <input type="color" value={el.buttonStyles.backgroundColor} onChange={(e) => updateElementProps(container.id, column.id, el.id, 'buttonStyles', 'backgroundColor', e.target.value)} className="w-5 h-5 cursor-pointer" title="버튼 배경색" />
-                                                            
+
                                                             <div className="w-px h-4 bg-slate-300" />
 
                                                             <div className="flex items-center gap-1" title="버튼 클릭 시 이동할 URL">
@@ -984,9 +1117,9 @@ export default function ContainerBoard({
                     style={{ top: selectedInlineImg.top - 50, left: selectedInlineImg.left }}
                     onMouseDown={(e) => {
                         e.preventDefault();
-                        e.stopPropagation(); 
+                        e.stopPropagation();
                     }}
-                    onClick={(e) => e.stopPropagation()} 
+                    onClick={(e) => e.stopPropagation()}
                 >
                     <label className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded cursor-pointer hover:bg-indigo-700 text-xs font-bold transition-colors shadow">
                         <ImagePlus size={14} /> 이미지 변경
@@ -1002,7 +1135,7 @@ export default function ContainerBoard({
                                         if (event.target?.result) {
                                             const newImageUrl = event.target.result as string;
                                             const { elId, cellKey, node } = selectedInlineImg;
-                                            const oldSrc = node.src; 
+                                            const oldSrc = node.src;
 
                                             setContainers(containers.map(container => ({
                                                 ...container,
@@ -1021,11 +1154,11 @@ export default function ContainerBoard({
                                                                     if (targetImg) {
                                                                         targetImg.setAttribute('src', newImageUrl);
                                                                         newCells[cellKey].content = tempDiv.innerHTML;
-                                                                        newCells[cellKey].file = file; 
+                                                                        newCells[cellKey].file = file;
                                                                     }
                                                                 }
                                                                 return { ...el, tableData: { ...el.tableData, cells: newCells } };
-                                                            } 
+                                                            }
                                                             else {
                                                                 const tempDiv = document.createElement('div');
                                                                 tempDiv.innerHTML = el.content;
@@ -1033,7 +1166,7 @@ export default function ContainerBoard({
                                                                 const targetImg = imgs.find(img => img.src === oldSrc) || imgs[0];
                                                                 if (targetImg) {
                                                                     targetImg.setAttribute('src', newImageUrl);
-                                                                    return { ...el, content: tempDiv.innerHTML, file: file }; 
+                                                                    return { ...el, content: tempDiv.innerHTML, file: file };
                                                                 }
                                                             }
                                                         }
@@ -1042,7 +1175,7 @@ export default function ContainerBoard({
                                                 }))
                                             })));
 
-                                            setSelectedInlineImg(null); 
+                                            setSelectedInlineImg(null);
                                         }
                                     };
                                     reader.readAsDataURL(file);
@@ -1087,7 +1220,7 @@ export default function ContainerBoard({
                                 }))
                             })));
 
-                            setSelectedInlineImg(null); 
+                            setSelectedInlineImg(null);
                         }}
                         className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-bold transition-colors shadow"
                     >
