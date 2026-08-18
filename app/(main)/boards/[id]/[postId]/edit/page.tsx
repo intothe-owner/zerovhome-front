@@ -3,7 +3,7 @@
 
 import { useState, use, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import CustomEditor from '@/components/main/CustomEditor'; // 💡 커스텀 에디터 임포트
+import CustomEditor from '@/components/main/CustomEditor';
 
 export default function PostEditPage({ params }: { params: Promise<{ id: string, postId: string }> }) {
   const router = useRouter();
@@ -21,10 +21,8 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
 
   const [extraData, setExtraData] = useState<Record<string, any>>({});
   
-  // 💡 새롭게 에디터에 추가되는 이미지를 담는 상태
   const [editorFiles, setEditorFiles] = useState<{ file: File, id: string }[]>([]);
 
-  // 💡 드래그 앤 드롭 상태 관리를 위한 state 및 ref 추가
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -72,7 +70,6 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
     setEditorFiles(prev => [...prev, { file, id }]);
   };
 
-  // 💡 파일 첨부 관련 핸들러들
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -113,8 +110,14 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
     });
   };
 
+  // 💡 새로 추가한 파일 삭제
   const removeFile = (indexToRemove: number) => {
     setFiles(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  // 💡 기존 첨부된 파일 삭제
+  const removeExistingFile = (indexToRemove: number) => {
+    setExistingFiles(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -155,6 +158,9 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
     if (formData.category) submitData.append('category', formData.category);
     if (Object.keys(extraData).length > 0) submitData.append('extraData', JSON.stringify(extraData));
     
+    // 💡 백엔드에서 남은 기존 파일을 알 수 있도록 데이터 전송
+    submitData.append('existingFiles', JSON.stringify(existingFiles));
+
     editorFiles.forEach(ef => {
       const ext = ef.file.name.split('.').pop();
       submitData.append('editorImages', ef.file, `${ef.id}.${ext}`);
@@ -284,7 +290,6 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
               )}
             </div>
 
-            {/* 💡 파일 드래그 앤 드롭 컴포넌트 */}
             {boardConfig.fileUploadCount > 0 && (
               <div className="space-y-2">
                 <div className="flex justify-between items-end">
@@ -294,7 +299,6 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
                   </span>
                 </div>
                 
-                {/* 💡 기존 첨부 파일 목록 */}
                 {existingFiles.length > 0 && (
                   <div className="mb-5 p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
                     <p className="text-xs font-bold text-blue-800 mb-2">현재 첨부된 파일</p>
@@ -302,18 +306,28 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
                       {existingFiles.map((url, idx) => {
                         const fileName = url.split('/').pop();
                         return (
-                          <li key={idx} className="flex items-center gap-2">
-                            <span>📎</span>
-                            <a href={url} target="_blank" rel="noreferrer" className="hover:underline">{fileName}</a>
+                          // 💡 삭제 X 버튼 추가를 위해 리스트 아이템 레이아웃 수정
+                          <li key={idx} className="flex items-center justify-between p-2 hover:bg-blue-100/50 rounded transition-colors">
+                            <div className="flex items-center gap-2 truncate">
+                              <span>📎</span>
+                              <a href={url} target="_blank" rel="noreferrer" className="hover:underline truncate">{fileName}</a>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); removeExistingFile(idx); }}
+                              className="text-slate-400 hover:text-red-500 font-bold px-2 py-1"
+                              title="파일 삭제"
+                            >
+                              ✕
+                            </button>
                           </li>
                         );
                       })}
                     </ul>
-                    <p className="text-xs text-red-500 mt-3 font-medium">* 새로운 파일을 추가로 첨부하면 기존 파일은 모두 삭제되고 새 파일로 덮어씌워집니다.</p>
+                    <p className="text-xs text-red-500 mt-3 font-medium">* 새로운 파일을 추가로 첨부하거나 기존 파일을 삭제하고 수정 완료를 누르면 반영됩니다.</p>
                   </div>
                 )}
                 
-                {/* 💡 드래그 앤 드롭 업로드 영역 */}
                 <div 
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
@@ -339,7 +353,6 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
                   />
                 </div>
 
-                {/* 💡 새로 첨부된 파일 리스트 */}
                 {files.length > 0 && (
                   <ul className="mt-3 space-y-2">
                     {files.map((file, index) => (

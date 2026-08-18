@@ -15,8 +15,8 @@ async function getPostData(boardId: string, postId: string) {
   return {
     boardConfig: boardRes.ok ? (await boardRes.json()).data : null,
     post: postData?.data || null,
-    prevPost: postData?.prevPost || null, // 💡 이전글 데이터 추출
-    nextPost: postData?.nextPost || null  // 💡 다음글 데이터 추출
+    prevPost: postData?.prevPost || null,
+    nextPost: postData?.nextPost || null
   };
 }
 
@@ -40,7 +40,12 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
   }
 
   const mediaUrls: string[] = typeof post.mediaUrls === 'string' ? JSON.parse(post.mediaUrls) : (post.mediaUrls || []);
-  const hasFiles = mediaUrls.some((url: string) => !isImage(url) && !isVideo(url));
+  
+  // 💡 에디터를 사용하면 모든 파일을 첨부파일 목록으로 보여주고, 에디터 미사용시 이미지/영상이 아닌 것만 보여줍니다.
+  const hasFiles = boardConfig?.useEditor 
+    ? mediaUrls.length > 0 
+    : mediaUrls.some((url: string) => !isImage(url) && !isVideo(url));
+    
   const extraFields = boardConfig?.extraFields || [];
 
   return (
@@ -89,7 +94,8 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
               </div>
             )}
 
-            {mediaUrls.length > 0 && (
+            {/* 💡 에디터를 사용하지 않을 때만 이미지를 본문에 노출합니다. */}
+            {!boardConfig?.useEditor && mediaUrls.length > 0 && (
               <div className="mb-10 space-y-6">
                 {mediaUrls.map((url: string, idx: number) => {
                   if (isImage(url)) return <img key={idx} src={url} alt="첨부 이미지" className="w-full max-w-3xl mx-auto rounded-xl border border-slate-100 shadow-sm" />;
@@ -116,7 +122,10 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
               <h4 className="font-bold text-slate-700 mb-3 flex items-center gap-2 text-sm">첨부파일</h4>
               <ul className="space-y-2">
                 {mediaUrls.map((url: string, idx: number) => {
-                  if (!isImage(url) && !isVideo(url)) {
+                  // 💡 에디터 사용 시 모든 파일을 표시, 미사용 시 이미지/영상이 아닌 것만 표시
+                  const showAsFile = boardConfig?.useEditor ? true : (!isImage(url) && !isVideo(url));
+                  
+                  if (showAsFile) {
                     const fileName = url.split('/').pop();
                     return (
                       <li key={idx}>
@@ -134,19 +143,17 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
           )}
         </article>
 
-        {/* 💡 이전글 / 다음글 네비게이션 영역 */}
+        {/* 이전글 / 다음글 네비게이션 영역 */}
         {(prevPost || nextPost) && (
           <div className="mt-8 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <ul className="divide-y divide-slate-100">
               {prevPost && (
                 <li className="flex items-center px-6 py-4 hover:bg-slate-50 transition-colors">
                   <span className="text-sm font-bold text-slate-500 w-24 shrink-0">▲ 이전글</span>
-                  {/* group 속성 부여 및 말풍선(Tooltip) 추가 */}
                   <Link href={`/boards/${boardId}/${prevPost.id}`} className="group relative flex-1 text-slate-700 hover:text-blue-600 font-medium truncate">
                     <span className="truncate block w-full">{prevPost.title}</span>
                     <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block bg-slate-800 text-white text-xs rounded-lg py-1.5 px-3 z-10 whitespace-nowrap shadow-lg">
                       {prevPost.title}
-                      {/* 말풍선 꼬리 */}
                       <svg className="absolute text-slate-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xmlSpace="preserve"><polygon className="fill-current" points="0,0 127.5,127.5 255,0" /></svg>
                     </div>
                   </Link>
@@ -155,11 +162,9 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
               {nextPost && (
                 <li className="flex items-center px-6 py-4 hover:bg-slate-50 transition-colors">
                   <span className="text-sm font-bold text-slate-500 w-24 shrink-0">▼ 다음글</span>
-                  {/* group 속성 부여 및 말풍선(Tooltip) 추가 */}
                   <Link href={`/boards/${boardId}/${nextPost.id}`} className="group relative flex-1 text-slate-700 hover:text-blue-600 font-medium truncate">
                     <span className="truncate block w-full">{nextPost.title}</span>
                     <div className="absolute left-0 top-full mt-2 hidden group-hover:block bg-slate-800 text-white text-xs rounded-lg py-1.5 px-3 z-10 whitespace-nowrap shadow-lg">
-                      {/* 말풍선 꼬리 (위쪽 방향) */}
                       <svg className="absolute text-slate-800 h-2 w-full left-0 bottom-full rotate-180" x="0px" y="0px" viewBox="0 0 255 255" xmlSpace="preserve"><polygon className="fill-current" points="0,0 127.5,127.5 255,0" /></svg>
                       {nextPost.title}
                     </div>
@@ -171,7 +176,6 @@ export default async function PostDetailPage({ params }: { params: Promise<{ id:
         )}
 
         <div className="flex justify-between items-center mt-8">
-          {/* 💡 이 버튼은 브라우저 히스토리(history.back)가 아닌 해당 게시판 URL 전체를 다시 호출하므로 항상 정상적인 목록으로 돌아갑니다. */}
           <Link href={`/boards/${boardId}`} className="px-6 py-2.5 font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-colors">
             목록으로
           </Link>
