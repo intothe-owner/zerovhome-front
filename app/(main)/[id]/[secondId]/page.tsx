@@ -1,39 +1,52 @@
-// src/app/(main)/[id]/[secondId]/page.tsx
+"use client"; // 💡 클라이언트 컴포넌트 선언
 
+import { useParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import BlockRenderer from "@/components/main/BlockRenderer";
 import MainSlider from "@/components/main/MainSlider";
-import TabMenu from "@/components/main/TabMenu"; // 💡 새로 만든 컴포넌트 임포트
+import TabMenu from "@/components/main/TabMenu";
 
-interface NestedSubPageProps {
-  params: Promise<{
-    id: string;
-    secondId: string;
-  }>;
-}
+// 1. 데이터 페칭 함수 정의
+const fetchNestedPageData = async (targetId: string) => {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pages/${targetId}`);
+  const json = await res.json();
+  if (!json.success) throw new Error("2뎁스 페이지 데이터 로딩 실패");
+  return json.data;
+};
 
-export default async function NestedSubPage({ params }: NestedSubPageProps) {
-  const { id, secondId } = await params;
-  const targetId = `${id}/${secondId}`;
+const fetchMenus = async () => {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/menus`);
+  const json = await res.json();
+  return json.success ? json.data : [];
+};
 
-  let pageData = null;
-  let allMenus: any[] = [];
+export default function NestedSubPage() {
+  // 💡 useParams를 통해 id와 secondId를 가져옵니다.
+  const params = useParams<{ id: string; secondId: string }>();
+  const id = params?.id;
+  const secondId = params?.secondId;
+  
+  const targetId = id && secondId ? `${id}/${secondId}` : "";
 
-  try {
-    // API 병렬 호출 유지
-    const [pageRes, menuRes] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/pages/${targetId}`, { cache: "no-store" }),
-      fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/menus`, { cache: "no-store" })
-    ]);
+  // 2. 2뎁스 페이지 데이터 쿼리
+  const { data: pageData, isLoading: isPageLoading } = useQuery({
+    queryKey: ['nestedPage', targetId],
+    queryFn: () => fetchNestedPageData(targetId),
+    enabled: !!targetId, // targetId가 완성되었을 때만 실행
+  });
 
-    const pageJson = await pageRes.json();
-    if (pageJson.success) pageData = pageJson.data;
+  // 3. 메뉴 데이터 쿼리
+  const { data: allMenus = [] } = useQuery({
+    queryKey: ['allMenus'],
+    queryFn: fetchMenus,
+  });
 
-    const menuJson = await menuRes.json();
-    if (menuJson.success) allMenus = menuJson.data;
-  } catch (error) {
-    console.error("2뎁스 서브페이지 데이터 로딩 실패:", error);
+  // 로딩 UI
+  if (isPageLoading) {
+    return <div className="flex h-[70vh] items-center justify-center">로딩 중...</div>;
   }
 
+  // 데이터가 없을 때 UI
   if (!pageData) {
     return (
       <div className="flex h-[70vh] items-center justify-center pt-16">
@@ -72,7 +85,7 @@ export default async function NestedSubPage({ params }: NestedSubPageProps) {
         </div>
       )}
 
-      {/* 💡 4. 분리한 탭 메뉴 컴포넌트 렌더링 */}
+      {/* 4. 탭 메뉴 컴포넌트 렌더링 */}
       <TabMenu allMenus={allMenus} currentMenuId={pageData.menuId} />
 
       {/* 5. 본문 렌더링 */}

@@ -1,18 +1,19 @@
-// src/app/(main)/boards/[id]/write/page.tsx
+// src/app/(main)/boards/[id]/write/page.tsx (또는 PostWriteClient.tsx)
 'use client';
 
 import { useState, use, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import CustomEditor from '@/components/main/CustomEditor'; // 경로 맞춰 수정
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import CustomEditor from '@/components/main/CustomEditor';
 
 export default function PostWritePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const resolvedParams = use(params);
   const boardId = resolvedParams.id;
 
   const [boardConfig, setBoardConfig] = useState<any>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const [extraData, setExtraData] = useState<Record<string, any>>({});
@@ -20,7 +21,6 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
   const [content, setContent] = useState('');
   const [editorFiles, setEditorFiles] = useState<{ file: File, id: string }[]>([]);
 
-  // 💡 드래그 앤 드롭 상태 관리를 위한 state 및 ref 추가
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,19 +49,36 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
       });
   }, [boardId, router]);
 
+  // 글 작성 뮤테이션 정의
+  const writeMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/boards/${boardId}/posts`, {
+        method: 'POST', 
+        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || '게시글 등록에 실패했습니다.');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      // 💡 게시글 목록 캐시 무효화로 최신화
+      queryClient.invalidateQueries({ queryKey: ['boardPosts', boardId] });
+      router.push(`/boards/${boardId}`);
+      router.refresh();
+    },
+    onError: (error: any) => {
+      alert(error.message || '서버 오류가 발생했습니다.');
+    }
+  });
+
   const handleEditorImageAttach = (file: File, id: string) => {
     setEditorFiles(prev => [...prev, { file, id }]);
   };
 
-  const handleCheckboxChange = (name: string, value: string, checked: boolean) => {
-    setExtraData(prev => {
-      const current = prev[name] || [];
-      if (checked) return { ...prev, [name]: [...current, value] };
-      else return { ...prev, [name]: current.filter((v: string) => v !== value) };
-    });
-  };
-
-  // 💡 파일 첨부 관련 핸들러들
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -80,24 +97,20 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
     setIsDragging(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFiles = Array.from(e.dataTransfer.files);
-      addFiles(droppedFiles);
+      addFiles(Array.from(e.dataTransfer.files));
     }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const selectedFiles = Array.from(e.target.files);
-      addFiles(selectedFiles);
+      addFiles(Array.from(e.target.files));
     }
-    // 동일한 파일 재선택 가능하도록 value 초기화
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const addFiles = (newFiles: File[]) => {
     setFiles(prev => {
       const totalFiles = [...prev, ...newFiles];
-      // 최대 업로드 개수 제한 설정
       if (totalFiles.length > boardConfig.fileUploadCount) {
         alert(`첨부파일은 최대 ${boardConfig.fileUploadCount}개까지만 업로드 가능합니다.`);
         return totalFiles.slice(0, boardConfig.fileUploadCount);
@@ -110,7 +123,7 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
     setFiles(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     const pureText = content.replace(/<[^>]*>?/gm, '').trim();
@@ -119,7 +132,6 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
       return;
     }
 
-    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     
     const tempDiv = document.createElement('div');
@@ -139,31 +151,12 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
       formData.append('editorImages', ef.file, `${ef.id}.${ext}`);
     });
 
-    // 💡 변경된 파일 배열을 formData에 추가
     files.forEach(file => { if (file) formData.append('attachments', file); });
     
     if (Object.keys(extraData).length > 0) formData.append('extraData', JSON.stringify(extraData));
     if (isLoggedIn && userData) formData.append('memberId', userData.id);
 
-    const token = localStorage.getItem('token');
-
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/boards/${boardId}/posts`, {
-        method: 'POST', 
-        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-        body: formData,
-      });
-      if (res.ok) {
-        router.push(`/boards/${boardId}`);
-        router.refresh();
-      } else {
-        const err = await res.json();
-        alert(err.message || '게시글 등록에 실패했습니다.');
-      }
-    } catch (error) { 
-      alert('서버 오류가 발생했습니다.'); 
-    }
-    setIsSubmitting(false);
+    writeMutation.mutate(formData);
   };
 
   if (!boardConfig) return <div className="w-full text-center pt-32 text-slate-500 font-medium">로딩 중...</div>;
@@ -179,8 +172,6 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-10">
           <form onSubmit={handleSubmit} className="space-y-8">
-            
-            {/* 기본 입력 폼 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {categories.length > 0 && (
                 <div className="space-y-2 md:col-span-2">
@@ -212,7 +203,6 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
               <input type="text" name="title" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" />
             </div>
 
-            {/* 에디터 */}
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">내용 *</label>
               {boardConfig.useEditor ? (
@@ -220,7 +210,7 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
                   value={content} 
                   onChange={setContent} 
                   onImageAttach={handleEditorImageAttach}
-                  placeholder="자유롭게 내용을 작성해주세요. (이미지 드래그 후 크기 조절 가능)" 
+                  placeholder="자유롭게 내용을 작성해주세요." 
                 />
               ) : (
                 <textarea 
@@ -234,14 +224,11 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
               )}
             </div>
 
-            {/* 💡 파일 드래그 앤 드롭 컴포넌트 */}
             {boardConfig.fileUploadCount > 0 && (
               <div className="space-y-2">
                 <div className="flex justify-between items-end">
                   <label className="text-sm font-bold text-slate-700">첨부파일</label>
-                  <span className="text-xs text-slate-500">
-                    ({files.length} / {boardConfig.fileUploadCount}개)
-                  </span>
+                  <span className="text-xs text-slate-500">({files.length} / {boardConfig.fileUploadCount}개)</span>
                 </div>
                 
                 <div 
@@ -249,39 +236,18 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl transition-colors cursor-pointer 
-                    ${isDragging 
-                      ? 'border-blue-500 bg-blue-50/50' 
-                      : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-slate-400'
-                    }`}
+                  className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl transition-colors cursor-pointer ${isDragging ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
                 >
-                  <svg className="w-8 h-8 text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
                   <p className="text-sm text-slate-600 font-medium">클릭하거나 파일을 이곳으로 드래그 하세요.</p>
-                  <p className="text-xs text-slate-500 mt-1">개별 첨부 시 Ctrl(Cmd)을 누르고 다중 선택할 수 있습니다.</p>
-                  <input
-                    type="file"
-                    multiple
-                    ref={fileInputRef}
-                    onChange={handleFileInputChange}
-                    className="hidden"
-                  />
+                  <input type="file" multiple ref={fileInputRef} onChange={handleFileInputChange} className="hidden" />
                 </div>
 
-                {/* 첨부된 파일 리스트 */}
                 {files.length > 0 && (
                   <ul className="mt-3 space-y-2">
                     {files.map((file, index) => (
                       <li key={index} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm">
-                        <span className="text-sm text-slate-700 truncate">{file.name} <span className="text-xs text-slate-400 ml-1">({(file.size / 1024 / 1024).toFixed(2)} MB)</span></span>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); removeFile(index); }}
-                          className="text-red-500 hover:text-red-700 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                        >
-                          삭제
-                        </button>
+                        <span className="text-sm text-slate-700 truncate">{file.name}</span>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); removeFile(index); }} className="text-red-500 text-sm font-medium px-2 py-1">삭제</button>
                       </li>
                     ))}
                   </ul>
@@ -290,8 +256,8 @@ export default function PostWritePage({ params }: { params: Promise<{ id: string
             )}
 
             <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
-              <button type="button" onClick={() => router.back()} className="px-6 py-3 font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">취소</button>
-              <button type="submit" disabled={isSubmitting} className="px-8 py-3 font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50">등록 완료</button>
+              <button type="button" onClick={() => router.back()} className="px-6 py-3 font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">취소</button>
+              <button type="submit" disabled={writeMutation.isPending} className="px-8 py-3 font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-50">등록 완료</button>
             </div>
           </form>
         </div>

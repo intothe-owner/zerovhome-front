@@ -1,27 +1,38 @@
+// src/app/(main)/boards/[id]/BoardListClient.tsx
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 
-export default function BoardListClient({ boardId, boardConfig, initialPosts, initialTotalPages, initialTotalCount = 0, initialCategory = '' }: any) {
+interface BoardListClientProps {
+  boardId: string;
+  boardConfig: any;
+  initialPosts: any[];
+  initialTotalPages: number;
+  initialTotalCount?: number;
+  initialCategory?: string;
+}
+
+const fetchBoardPosts = async (boardId: string, page: number, limit: number, search: string, category: string) => {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/boards/${boardId}/posts?page=${page}&limit=${limit}&search=${search}&category=${encodeURIComponent(category)}`);
+  const json = await res.json();
+  if (!json.success) throw new Error('게시글 목록 불러오기 실패');
+  return json;
+};
+
+export default function BoardListClient({ boardId, boardConfig, initialPosts, initialTotalPages, initialTotalCount = 0, initialCategory = '' }: BoardListClientProps) {
   const router = useRouter();
   
-  const [posts, setPosts] = useState(initialPosts);
   const [page, setPage] = useState(1);
-  const [startPage, setStartPage] = useState(1); // 💡 페이지 이동 시 넘버링 기준점이 되는 상태 추가
-  const [totalPages, setTotalPages] = useState(initialTotalPages);
-  // 서버에서 initialTotalCount가 누락되어도 첫 화면 번호가 0, -1, -2가 되지 않도록 처리
-  const [totalCount, setTotalCount] = useState(
-    initialTotalCount > 0 ? initialTotalCount : initialPosts.length
-  );
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory); 
-  const [loading, setLoading] = useState(false);
+  const [submittedSearch, setSubmittedSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const [allPosts, setAllPosts] = useState(initialPosts);
 
   const boardType = boardConfig.boardType;
   const listCount = boardConfig.listCount || 10;
-  
   const categories = boardConfig.categories ? boardConfig.categories.split(',').map((c: string) => c.trim()) : [];
 
   const [userLevel, setUserLevel] = useState(1);
@@ -30,61 +41,38 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
     if (userStr) { try { setUserLevel(JSON.parse(userStr).level); } catch (e) { } }
   }, []);
 
-  const fetchPosts = async (currentPage: number, searchQuery: string, categoryQuery: string, isAppend: boolean = false) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/boards/${boardId}/posts?page=${currentPage}&limit=${listCount}&search=${searchQuery}&category=${encodeURIComponent(categoryQuery)}`);
-      const json = await res.json();
-      if (json.success) {
-        if (isAppend) {
-          // 무한 스크롤로 이어붙일 때는 startPage를 변경하지 않음
-          setPosts([...posts, ...json.data]);
-        } else {
-          // 페이지 번호를 누르거나 검색/카테고리를 클릭해 새 목록을 부를 때 기준점 업데이트
-          setStartPage(currentPage);
-          setPosts(json.data);
-        }
-        setTotalPages(json.totalPages);
-        setTotalCount(json.totalCount);
-      }
-    } catch (error) { console.error('데이터 페칭 오류:', error); }
-    setLoading(false);
-  };
+  // React Query를 통한 데이터 페칭
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['boardPosts', boardId, page, submittedSearch, selectedCategory],
+    queryFn: () => fetchBoardPosts(boardId, page, listCount, submittedSearch, selectedCategory),
+    initialData: page === 1 && !submittedSearch && selectedCategory === initialCategory 
+      ? { success: true, data: initialPosts, totalPages: initialTotalPages, totalCount: initialTotalCount > 0 ? initialTotalCount : initialPosts.length }
+      : undefined,
+  });
+
+  const posts = data?.data || [];
+  const totalPages = data?.totalPages || 1;
+  const totalCount = data?.totalCount || posts.length;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    fetchPosts(1, search, selectedCategory, false);
+    setSubmittedSearch(search);
   };
 
   const handleCategoryClick = (cat: string) => {
     setSelectedCategory(cat);
     setPage(1);
+    setSubmittedSearch('');
+    setSearch('');
     
     const newUrl = cat ? `/boards/${boardId}?category=${encodeURIComponent(cat)}` : `/boards/${boardId}`;
     router.push(newUrl, { scroll: false });
-    
-    fetchPosts(1, search, cat, false);
   };
 
   const handlePageClick = (p: number) => {
     setPage(p);
-    fetchPosts(p, search, selectedCategory, false);
   };
-
-  const observer = useRef<IntersectionObserver | null>(null);
-  const lastPostElementRef = useCallback((node: any) => {
-    if (loading) return;
-    if (observer.current) observer.current.disconnect();
-    observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && page < totalPages) {
-        const nextPage = page + 1;
-        setPage(nextPage);
-        fetchPosts(nextPage, search, selectedCategory, true);
-      }
-    });
-    if (node) observer.current.observe(node);
-  }, [loading, page, totalPages, search, selectedCategory]);
 
   return (
     <div className="w-full flex flex-col pt-12 pb-24">
@@ -154,8 +142,7 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
                   {posts.map((post: any, index: number) => (
                     <tr key={post.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="py-4 px-6 text-center text-sm text-slate-500 font-medium">
-                        {/* 💡 페이지네이션 오프셋을 반영한 정확한 번호 계산식 */}
-                        {totalCount - ((startPage - 1) * listCount) - index}
+                        {totalCount - ((page - 1) * listCount) - index}
                       </td>
                       <td className="py-4 px-6">
                         <Link href={`/boards/${boardId}/${post.id}`} className="flex items-center text-slate-800 group-hover:text-blue-600 font-medium transition-colors">
@@ -176,12 +163,11 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
             
             <ul className="block md:hidden divide-y divide-slate-100">
               {posts.map((post: any, index: number) => (
-                <li key={post.id} ref={index === posts.length - 1 ? lastPostElementRef : null} className="p-4 hover:bg-slate-50 transition-colors">
+                <li key={post.id} className="p-4 hover:bg-slate-50 transition-colors">
                   <Link href={`/boards/${boardId}/${post.id}`} className="block">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-xs font-bold text-slate-400 shrink-0">
-                        {/* 💡 모바일 뷰 넘버링도 동일하게 수정 */}
-                        {totalCount - ((startPage - 1) * listCount) - index}
+                        {totalCount - ((page - 1) * listCount) - index}
                       </span>
                       <div className="text-base font-semibold text-slate-800 truncate">
                         {post.isNotice && <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-600 mr-2">공지</span>}
@@ -202,8 +188,8 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
 
         {boardType === 'GALLERY' && (
           <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {posts.map((post: any, index: number) => (
-              <Link key={post.id} href={`/boards/${boardId}/${post.id}`} ref={index === posts.length - 1 ? lastPostElementRef : null} className="group flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all">
+            {posts.map((post: any) => (
+              <Link key={post.id} href={`/boards/${boardId}/${post.id}`} className="group flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-all">
                 <div className="relative aspect-[4/3] bg-slate-100 overflow-hidden">
                   {post.thumbnailUrl ? <img src={post.thumbnailUrl} className="w-full h-full object-cover transition-transform group-hover:scale-105" /> : <div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>}
                 </div>
@@ -222,8 +208,8 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
 
         {boardType === 'FAQ' && (
           <div className="space-y-4">
-            {posts.map((post: any, index: number) => (
-              <details key={post.id} ref={index === posts.length - 1 ? lastPostElementRef : null} className="group bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            {posts.map((post: any) => (
+              <details key={post.id} className="group bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <summary className="cursor-pointer flex items-center justify-between p-5 list-none hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-4 pr-4">
                     <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-bold shrink-0">Q</span>

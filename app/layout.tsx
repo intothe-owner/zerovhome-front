@@ -1,6 +1,7 @@
 
 import PushNotification from "@/components/PushNotification";
 import "./globals.css";
+import QueryProvider from "@/components/QueryClientProvider";
 
 export default function RootLayout({
   children,
@@ -12,8 +13,9 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <body>
         <PushNotification/>
+        <QueryProvider>
           {children}
-        
+        </QueryProvider>
       </body>
     </html>
   );
