@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes"; // 💡 next-themes 추가
+import { useTheme } from "@teispace/next-themes"; // 💡 next-themes 추가
 import Header from "@/components/main/Header";
 import Footer from "@/components/main/Footer";
 import PopupRenderer from "@/components/main/PopupRenderer";
