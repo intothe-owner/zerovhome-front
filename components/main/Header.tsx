@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { Menu, X, ChevronDown, UserCircle, Sun, Moon } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@teispace/next-themes";
 
 interface MenuType {
   id: number;
