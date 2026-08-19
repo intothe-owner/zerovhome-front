@@ -193,7 +193,7 @@ export default function BlockRenderer({ blocks }: { blocks: ContainerNode[] }) {
                   {/* 1. 텍스트 엘리먼트 */}
                   {el.type === "TEXT" && (
                     <HtmlWithScriptRenderer
-                      html={cleanHtmlForTheme(el.content)} 
+                      html={el.content} 
                       className="whitespace-pre-wrap break-words prose prose-slate dark:prose-invert max-w-none w-full"
                       style={{
                         fontSize: `${el.styles?.fontSize || 16}px`,
