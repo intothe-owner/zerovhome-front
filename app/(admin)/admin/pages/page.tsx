@@ -387,7 +387,7 @@ export default function VisualPageBuilder() {
         setLayoutModalOpen(false);
     };
 
-   
+
 
     const updateElementProps = (containerId: string, columnId: string, elementId: string, propCategory: 'styles' | 'buttonStyles' | 'tableData' | 'cardData', key: string, value: any) => {
         const editableDiv = document.getElementById(`editable-${elementId}`);
@@ -479,11 +479,11 @@ export default function VisualPageBuilder() {
     };
 
     // 💡 1. addElement 함수 수정: 비율 유지(keepAspectRatio) 속성 기본값 추가
- const addElement = (type: ElementType) => {
+    const addElement = (type: ElementType) => {
         if (!elementModalOpen) return;
         const { containerId, columnId } = elementModalOpen;
-        const defaultContent = type === "TEXT" ? "제목을 입력해주세요." : 
-                               type === "MAP" ? "부산광역시 해운대구 신반송로 151" : "";
+        const defaultContent = type === "TEXT" ? "제목을 입력해주세요." :
+            type === "MAP" ? "부산광역시 해운대구 신반송로 151" : "";
         const newElement: ElementNode = {
             id: Math.random().toString(36).substr(2, 9), type,
             content: defaultContent,
@@ -499,58 +499,58 @@ export default function VisualPageBuilder() {
     };
 
 
-// 💡 2. handleResizeStart 함수 수정: 드래그 시 '비율 유지' 체크 여부에 따라 동작 분기
-const handleResizeStart = (e: React.MouseEvent, containerId: string, columnId: string, el: ElementNode, direction: string) => {
-    e.stopPropagation(); e.preventDefault();
-    const elementNode = document.getElementById(`element-${el.id}`);
-    if (!elementNode) return;
-    const startX = e.clientX, startY = e.clientY, startWidth = elementNode.offsetWidth, startHeight = elementNode.offsetHeight;
-    
-    // 💡 이미지 엘리먼트이면서 비율 유지가 켜져있는지 확인 (기본값 true)
-    const isLocked = el.type === "IMAGE" && el.styles?.keepAspectRatio !== false;
-    const ratio = startHeight / startWidth;
-    
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-        let newWidth = startWidth, newHeight = startHeight;
-        const deltaX = moveEvent.clientX - startX, deltaY = moveEvent.clientY - startY;
-        
-        if (direction.includes("e")) newWidth = startWidth + deltaX;
-        if (direction.includes("w")) newWidth = startWidth - deltaX;
-        
-        if (isLocked) {
-            // 💡 비율 유지: 넓이 변경량에 맞춰 높이를 강제 계산
-            newHeight = newWidth * ratio;
-        } else {
-            // 💡 자유 변형: 위아래 드래그를 허용
-            if (direction.includes("s")) newHeight = startHeight + deltaY;
-            if (direction.includes("n")) newHeight = startHeight - deltaY;
-        }
-        
-        setContainers((prev) => prev.map((container) => container.id === containerId ? {
-            ...container, columns: container.columns.map((col) => col.id === columnId ? {
-                ...col, elements: col.elements.map((element) => element.id === el.id ? { 
-                    ...element, 
-                    styles: { 
-                        // 💡 에러 원인 해결: TextStyles에서 필수로 요구하는 속성들을 모두 기본값으로 채워줍니다!
-                        ...(element.styles || { 
-                            fontFamily: "default", 
-                            fontSize: 16, 
-                            color: "#000000", 
-                            textAlign: "left", 
-                            layerAlign: "flex-start", 
-                            linkUrl: "", 
-                            keepAspectRatio: true 
-                        }), 
-                        width: `${Math.max(50, newWidth)}px`, 
-                        height: `${Math.max(30, newHeight)}px` 
-                    } 
-                } : element)
-            } : col)
-        } : container));
+    // 💡 2. handleResizeStart 함수 수정: 드래그 시 '비율 유지' 체크 여부에 따라 동작 분기
+    const handleResizeStart = (e: React.MouseEvent, containerId: string, columnId: string, el: ElementNode, direction: string) => {
+        e.stopPropagation(); e.preventDefault();
+        const elementNode = document.getElementById(`element-${el.id}`);
+        if (!elementNode) return;
+        const startX = e.clientX, startY = e.clientY, startWidth = elementNode.offsetWidth, startHeight = elementNode.offsetHeight;
+
+        // 💡 이미지 엘리먼트이면서 비율 유지가 켜져있는지 확인 (기본값 true)
+        const isLocked = el.type === "IMAGE" && el.styles?.keepAspectRatio !== false;
+        const ratio = startHeight / startWidth;
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            let newWidth = startWidth, newHeight = startHeight;
+            const deltaX = moveEvent.clientX - startX, deltaY = moveEvent.clientY - startY;
+
+            if (direction.includes("e")) newWidth = startWidth + deltaX;
+            if (direction.includes("w")) newWidth = startWidth - deltaX;
+
+            if (isLocked) {
+                // 💡 비율 유지: 넓이 변경량에 맞춰 높이를 강제 계산
+                newHeight = newWidth * ratio;
+            } else {
+                // 💡 자유 변형: 위아래 드래그를 허용
+                if (direction.includes("s")) newHeight = startHeight + deltaY;
+                if (direction.includes("n")) newHeight = startHeight - deltaY;
+            }
+
+            setContainers((prev) => prev.map((container) => container.id === containerId ? {
+                ...container, columns: container.columns.map((col) => col.id === columnId ? {
+                    ...col, elements: col.elements.map((element) => element.id === el.id ? {
+                        ...element,
+                        styles: {
+                            // 💡 에러 원인 해결: TextStyles에서 필수로 요구하는 속성들을 모두 기본값으로 채워줍니다!
+                            ...(element.styles || {
+                                fontFamily: "default",
+                                fontSize: 16,
+                                color: "#000000",
+                                textAlign: "left",
+                                layerAlign: "flex-start",
+                                linkUrl: "",
+                                keepAspectRatio: true
+                            }),
+                            width: `${Math.max(50, newWidth)}px`,
+                            height: `${Math.max(30, newHeight)}px`
+                        }
+                    } : element)
+                } : col)
+            } : container));
+        };
+        const handleMouseUp = () => { document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUp); };
+        document.addEventListener("mousemove", handleMouseMove); document.addEventListener("mouseup", handleMouseUp);
     };
-    const handleMouseUp = () => { document.removeEventListener("mousemove", handleMouseMove); document.removeEventListener("mouseup", handleMouseUp); };
-    document.addEventListener("mousemove", handleMouseMove); document.addEventListener("mouseup", handleMouseUp);
-};
 
     const openTableConfig = () => { if (!elementModalOpen) return; setTableConfigModalOpen({ containerId: elementModalOpen.containerId, columnId: elementModalOpen.columnId }); setElementModalOpen(null); setTableInputs({ rows: 3, cols: 3 }); };
     const confirmTableConfig = () => {
