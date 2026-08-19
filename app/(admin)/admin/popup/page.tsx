@@ -3,12 +3,16 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, List, Save, Image as ImageIcon } from "lucide-react";
+import CustomEditor from '@/components/main/CustomEditor'; // CustomEditor 임포트 추가
 
 export default function PopupManager() {
   const [popups, setPopups] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<"LIST" | "FORM">("LIST");
   const [isEditing, setIsEditing] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  
+  // 에디터 이미지 첨부 관리를 위한 상태 추가
+  const [editorFiles, setEditorFiles] = useState<{ file: File, id: string }[]>([]);
   
   const initialForm = {
     id: null, title: "", type: "LAYER", positionX: "CENTER", positionY: "CENTER",
@@ -24,12 +28,43 @@ export default function PopupManager() {
 
   useEffect(() => { fetchPopups(); }, []);
 
+  // 에디터 내 이미지 첨부 콜백 핸들러
+  const handleEditorImageAttach = (file: File, id: string) => {
+    setEditorFiles(prev => [...prev, { file, id }]);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 에디터 내부 이미지 cid 치환 로직
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = formData.content;
+    const imgs = tempDiv.querySelectorAll('img[data-file-id]');
+    
+    imgs.forEach(img => {
+      const id = img.getAttribute('data-file-id');
+      img.setAttribute('src', `cid:${id}`);
+      img.removeAttribute('data-file-id');
+    });
+
     const submitData = new FormData();
     Object.entries(formData).forEach(([key, value]) => {
-      if (value !== null && key !== 'attachmentUrl') submitData.append(key, String(value));
+      // content는 아래에서 직접 세팅하므로 제외
+      if (value !== null && key !== 'attachmentUrl' && key !== 'content') {
+        submitData.append(key, String(value));
+      }
     });
+
+    // 치환된 에디터 내용 세팅
+    submitData.append('content', tempDiv.innerHTML);
+
+    // 에디터 첨부 이미지들을 editorImages 키로 FormData에 추가
+    editorFiles.forEach(ef => {
+      const ext = ef.file.name.split('.').pop();
+      submitData.append('editorImages', ef.file, `${ef.id}.${ext}`);
+    });
+
+    // 팝업 대표(단일) 첨부 이미지
     if (file) submitData.append("attachment", file);
 
     const url = isEditing ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/popups/${formData.id}` : `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/popups`;
@@ -40,6 +75,8 @@ export default function PopupManager() {
       alert("저장되었습니다.");
       setViewMode("LIST");
       fetchPopups();
+    } else {
+      alert("저장에 실패했습니다.");
     }
   };
 
@@ -69,7 +106,13 @@ export default function PopupManager() {
         <button 
           onClick={() => {
             if (viewMode === "FORM") { setViewMode("LIST"); } 
-            else { setFormData(initialForm); setIsEditing(false); setFile(null); setViewMode("FORM"); }
+            else { 
+              setFormData(initialForm); 
+              setIsEditing(false); 
+              setFile(null); 
+              setEditorFiles([]); // 새 폼 열 때 에디터 파일 초기화
+              setViewMode("FORM"); 
+            }
           }}
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm"
         >
@@ -106,7 +149,9 @@ export default function PopupManager() {
                   <td className="p-4 text-center">
                     <button onClick={() => { 
                       setFormData({...p, startDate: formatDateForInput(p.startDate), endDate: formatDateForInput(p.endDate)}); 
-                      setIsEditing(true); setViewMode("FORM"); 
+                      setEditorFiles([]); // 편집 모드 진입 시 에디터 파일 초기화
+                      setIsEditing(true); 
+                      setViewMode("FORM"); 
                     }} className="text-indigo-600 mr-3"><Edit2 size={16}/></button>
                     <button onClick={() => handleDelete(p.id)} className="text-red-500"><Trash2 size={16}/></button>
                   </td>
@@ -140,7 +185,7 @@ export default function PopupManager() {
               </label>
             </div>
 
-            {/* 위치 설정 (그리드 직관성 제공) */}
+            {/* 위치 설정 */}
             <div className="col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
               <label className="block font-bold mb-3 text-slate-700">팝업 위치 설정 (레이어 팝업 시 적용)</label>
               <div className="flex gap-4">
@@ -175,8 +220,12 @@ export default function PopupManager() {
 
             <div className="col-span-2 border-t border-slate-100 pt-4">
               <label className="block font-bold mb-1">내용 작성 (HTML 지원)</label>
-              {/* 여기에 추후 Toast UI 등 에디터를 씌울 수 있습니다 */}
-              <textarea value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} rows={6} className={inputClass} placeholder="<p>팝업 내용을 입력하세요.</p>"></textarea>
+              <CustomEditor 
+                value={formData.content} 
+                onChange={(val: string) => setFormData({...formData, content: val})} 
+                onImageAttach={handleEditorImageAttach}
+                placeholder="팝업 내용을 입력하세요." 
+              />
             </div>
 
             <div className="col-span-2">
