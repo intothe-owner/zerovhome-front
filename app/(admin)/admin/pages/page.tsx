@@ -482,9 +482,11 @@ export default function VisualPageBuilder() {
  const addElement = (type: ElementType) => {
         if (!elementModalOpen) return;
         const { containerId, columnId } = elementModalOpen;
+        const defaultContent = type === "TEXT" ? "제목을 입력해주세요." : 
+                               type === "MAP" ? "부산광역시 해운대구 신반송로 151" : "";
         const newElement: ElementNode = {
             id: Math.random().toString(36).substr(2, 9), type,
-            content: type === "TEXT" ? "제목을 입력해주세요." : "",
+            content: defaultContent,
             // 💡 keepAspectRatio: true 를 추가하여 기본적으로 비율이 유지되도록 설정
             styles: { fontFamily: "default", fontSize: 32, color: "#000000", textAlign: "left", layerAlign: "flex-start", linkUrl: "", width: "auto", height: "auto", keepAspectRatio: true }
         };

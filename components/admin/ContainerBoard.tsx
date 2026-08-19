@@ -4,6 +4,8 @@ import {
     LayoutTemplate, Trash2, Wand2, Plus,
     Bold, Italic, Underline, Link as LinkIcon, Box, AlignLeft, AlignCenter, AlignRight,
     Upload, Video, Music, ImageIcon, X, Merge, Split, Sparkles, ImagePlus, Code, GripVertical
+    
+    
 } from "lucide-react";
 import { ContainerNode, ElementNode, TableData, TableCell } from "@/types/types";
 
@@ -1141,9 +1143,64 @@ export default function ContainerBoard({
                                                     )}
                                                 </div>
                                             )}
+                                            {/* 10. MAP Element (지도) */}
+{el.type === "MAP" && (
+    <div className="w-full relative ml-4" onMouseDown={(e) => { e.stopPropagation(); setActiveElementId(el.id); }}>
+        {isActive && (
+            <div className="absolute -top-16 left-0 bg-white rounded-lg shadow-xl border border-slate-200 px-3 py-2 flex items-center gap-2 z-50 whitespace-nowrap element-toolbar">
+                <span className="text-[10px] font-bold text-slate-500">주소입력</span>
+                <input 
+                    type="text" 
+                    value={el.content} // 💡 content에 주소를 저장합니다.[cite: 1]
+                    onChange={(e) => updateElementHtmlContent(el.id, e.target.value)} 
+                    className="w-64 text-xs border border-slate-200 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                    placeholder="예: 부산광역시 해운대구 신반송로 151"
+                />
+                <div className="w-px h-4 bg-slate-300" />
+                <span className="text-[10px] font-bold text-slate-500">지도 높이</span>
+                <input 
+                    type="text" 
+                    value={el.styles?.height || "400px"} 
+                    onChange={(e) => updateElementStyle(container.id, column.id, el.id, "height", e.target.value)} 
+                    className="w-16 text-xs text-center border border-slate-200 rounded py-1 outline-none"
+                    placeholder="400px"
+                />
+                <div className="w-px h-4 bg-slate-300" />
+                <button onClick={() => deleteElement(container.id, column.id, el.id)} className="text-slate-500 hover:text-red-500" title="삭제">
+                    <Trash2 size={16} />
+                </button>
+            </div>
+        )}
+        
+        {/* 관리자 뷰 플레이스홀더 (타이핑 시 불필요한 API 호출 방지) */}
+        <div 
+            className={`w-full bg-slate-100 flex flex-col items-center justify-center rounded overflow-hidden relative transition-all ${isActive ? 'outline outline-2 outline-[#00d0d0]' : 'hover:outline outline-2 outline-indigo-200'}`}
+            style={{ height: el.styles?.height || "400px" }}
+        >
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="32" 
+                height="32" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className="text-indigo-500 mb-2"
+            >
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            <p className="font-bold text-slate-700">{el.content || "주소를 입력해주세요"}</p>
+            <p className="text-xs text-slate-500 mt-1">실제 사용자 화면에서는 카카오 지도가 출력됩니다.</p>
+        </div>
+    </div>
+)}
                                         </div>
                                     );
                                 })}
+                                
 
                                 <button
                                     onClick={() => setElementModalOpen({ containerId: container.id, columnId: column.id })}

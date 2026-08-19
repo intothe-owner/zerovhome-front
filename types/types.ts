@@ -1,5 +1,5 @@
 // @/components/main/types.ts
-export type ElementType = "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "BUTTON" | "SEPARATOR" | "TABLE" | "CARD";
+export type ElementType = "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "BUTTON" | "SEPARATOR" | "TABLE" | "CARD" | "MAP";
 
 export interface CardData {
     layout: "row" | "col";
