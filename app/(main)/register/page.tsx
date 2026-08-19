@@ -1,34 +1,34 @@
+// src/app/register/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, ShieldCheck } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import RegisterForm from "./RegisterForm";
+
+const fetchMemberSettings = async (router: any) => {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/member-settings`);
+  const json = await res.json();
+  if (json.success) {
+    if (json.data.memberSystemMode === "NONE") {
+      alert("현재 회원가입을 받고 있지 않습니다.");
+      router.push("/login");
+      throw new Error("회원가입 중단됨");
+    }
+    return json.data;
+  }
+  throw new Error("설정 로드 실패");
+};
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [settings, setSettings] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-
-  useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/member-settings`)
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success) {
-          // 가입 차단 모드(LOGIN_ONLY, NONE)일 경우 접근 제한
-          if (json.data.memberSystemMode === "NONE") {
-            alert("현재 회원가입을 받고 있지 않습니다.");
-            router.push("/login");
-            return;
-          }
-          setSettings(json.data);
-        }
-      })
-      .finally(() => setIsLoading(false));
-  }, [router]);
-
+  // 💡 useQuery로 설정 데이터 페칭
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['memberSettings'],
+    queryFn: () => fetchMemberSettings(router),
+    retry: false,
+  });
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -36,9 +36,8 @@ export default function RegisterPage() {
     </div>
   );
 
-
   return (
-    <div className="min-h-[80vh] py-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-900 transition-colors flex justify-center">
+    <div className="min-h-[80vh] py-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-900 transition-colors flex justify-center pt-34">
       <div className="max-w-2xl w-full space-y-8 bg-white dark:bg-slate-800 p-8 md:p-12 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700">
         
         <div className="text-center border-b border-slate-200 dark:border-slate-700 pb-8">
@@ -53,7 +52,7 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        <RegisterForm settings={settings}/>
+        <RegisterForm settings={settings} />
       </div>
     </div>
   );

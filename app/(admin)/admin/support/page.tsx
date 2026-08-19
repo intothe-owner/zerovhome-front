@@ -1,4 +1,3 @@
-// src/app/(admin)/admin/funds/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -47,9 +46,9 @@ export default function SupportFundManager() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/funds/scrape`, { method: "POST" });
       const json = await res.json();
       alert(json.message);
-      fetchFunds(1); // 갱신 후 1페이지 다시 불러오기
+      fetchFunds(1);
     } catch (e) {
-        console.log(e);
+      console.log(e);
       alert("기업마당 데이터 수집 중 오류가 발생했습니다.");
     } finally {
       setIsScraping(false);
@@ -90,6 +89,40 @@ export default function SupportFundManager() {
     }
   };
 
+  // 💡 [추가] 한국자활복지개발원 크롤링 호출
+  const handleScrapeKdissw = async () => {
+    if (!confirm("한국자활복지개발원 사업공고를 추가로 가져오시겠습니까?")) return;
+    
+    setIsScraping(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/funds/scrape/kdissw`, { method: "POST" });
+      const json = await res.json();
+      alert(json.message);
+      fetchFunds(1);
+    } catch (e) {
+      alert("한국자활복지개발원 데이터 수집 중 오류가 발생했습니다.");
+    } finally {
+      setIsScraping(false);
+    }
+  };
+
+  // 💡 [추가] 부산광역자활센터 크롤링 호출
+  const handleScrapeBusanjh = async () => {
+    if (!confirm("부산광역자활센터 공지사항을 추가로 가져오시겠습니까?")) return;
+    
+    setIsScraping(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/funds/scrape/busanjh`, { method: "POST" });
+      const json = await res.json();
+      alert(json.message);
+      fetchFunds(1);
+    } catch (e) {
+      alert("부산광역자활센터 데이터 수집 중 오류가 발생했습니다.");
+    } finally {
+      setIsScraping(false);
+    }
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchFunds(1, searchTitle);
@@ -123,30 +156,47 @@ export default function SupportFundManager() {
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900">사업지원금 관리</h2>
-          <p className="text-sm text-slate-500 mt-1">기업마당 및 K-Startup에서 공고를 자동으로 수집하여 보여줍니다.</p>
+          <p className="text-sm text-slate-500 mt-1">다양한 기관에서 공고를 자동으로 수집하여 보여줍니다.</p>
         </div>
         
-        <div className="flex gap-3">
+        {/* 💡 동기화 버튼 그룹 (flex-wrap 및 간격 조정) */}
+        <div className="flex flex-wrap gap-2 justify-end">
           <button 
             onClick={handleScrapeBizinfo}
             disabled={isScraping}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm hover:bg-indigo-700 transition"
+            className="bg-indigo-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 text-xs hover:bg-indigo-700 transition"
           >
-            <DownloadCloud size={16}/> 기업마당 동기화
+            <DownloadCloud size={14}/> 기업마당
           </button>
           <button 
             onClick={handleScrapeKStartup}
             disabled={isScraping}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm hover:bg-blue-700 transition"
+            className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 text-xs hover:bg-blue-700 transition"
           >
-            <DownloadCloud size={16}/> K-Startup 동기화
+            <DownloadCloud size={14}/> K-Startup
           </button>
           <button 
             onClick={handleScrapeSbiz24}
             disabled={isScraping}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm hover:bg-blue-500 transition"
+            className="bg-emerald-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 text-xs hover:bg-emerald-700 transition"
           >
-            <DownloadCloud size={16}/> 소상공인 동기화
+            <DownloadCloud size={14}/> 소상공인24
+          </button>
+          {/* 한국자활 버튼 추가 */}
+          <button 
+            onClick={handleScrapeKdissw}
+            disabled={isScraping}
+            className="bg-teal-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 text-xs hover:bg-teal-700 transition"
+          >
+            <DownloadCloud size={14}/> 한국자활
+          </button>
+          {/* 부산자활 버튼 추가 */}
+          <button 
+            onClick={handleScrapeBusanjh}
+            disabled={isScraping}
+            className="bg-violet-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 text-xs hover:bg-violet-700 transition"
+          >
+            <DownloadCloud size={14}/> 부산자활
           </button>
         </div>
       </div>
@@ -172,7 +222,7 @@ export default function SupportFundManager() {
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="p-4 font-bold w-24">지원분야</th>
+              <th className="p-4 font-bold w-28">지원분야</th>
               <th className="p-4 font-bold">지원사업명</th>
               <th className="p-4 font-bold w-48">소관부처/지자체</th>
               <th className="p-4 font-bold w-48">신청기간</th>
@@ -220,7 +270,6 @@ export default function SupportFundManager() {
         {/* --- 그룹화된 페이지네이션 --- */}
         {totalPages > 1 && (
           <div className="p-4 border-t border-slate-100 flex justify-center items-center gap-2">
-            {/* 이전 그룹으로 이동 버튼 */}
             <button
               onClick={() => fetchFunds(startPage - 1, searchTitle)}
               disabled={startPage === 1}
@@ -234,7 +283,6 @@ export default function SupportFundManager() {
               <ChevronLeft size={20} />
             </button>
 
-            {/* 페이지 번호 목록 */}
             {pages.map(p => (
               <button
                 key={p}
@@ -249,7 +297,6 @@ export default function SupportFundManager() {
               </button>
             ))}
 
-            {/* 다음 그룹으로 이동 버튼 */}
             <button
               onClick={() => fetchFunds(endPage + 1, searchTitle)}
               disabled={endPage === totalPages}

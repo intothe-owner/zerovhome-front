@@ -1,29 +1,24 @@
+// src/app/login/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Mail, Lock, User, Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import LoginForm from "./LoginForm";
 
+const fetchMemberSettings = async () => {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/member-settings`);
+  const json = await res.json();
+  if (!json.success) throw new Error("설정 정보를 불러오지 못했습니다.");
+  return json.data;
+};
+
 export default function LoginPage() {
-  const router = useRouter();
-  const [settings, setSettings] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-
-  useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/member-settings`)
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success) {
-
-           setSettings(json.data);
-        }
-      })
-      .finally(() => setIsLoading(false));
-  }, [router]);
-
+  // 💡 useQuery로 회원 설정 데이터 페칭 및 캐싱 처리
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['memberSettings'],
+    queryFn: fetchMemberSettings,
+  });
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -32,7 +27,7 @@ export default function LoginPage() {
   );
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-900 transition-colors">
+    <div className="min-h-[80vh] flex items-center justify-center py-2 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-900 transition-colors pt-34">
       <div className="max-w-md w-full space-y-8 bg-white dark:bg-slate-800 p-8 md:p-10 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700">
         
         <div className="text-center">
@@ -44,11 +39,8 @@ export default function LoginPage() {
           </p>
         </div>
 
-        
-        <LoginForm settings="{settings}"/>
-       
+        <LoginForm settings={settings} />
 
-        {/* 소셜 로그인 (활성화된 것만 표시) */}
         {(settings?.useKakaoLogin || settings?.useNaverLogin || settings?.useGoogleLogin) && (
           <div className="mt-6">
             <div className="relative">
