@@ -106,35 +106,38 @@ const AnimatedElement = ({ el, children }: { el: ElementNode, children: React.Re
   );
 };
 // 💡 [추가] 텍스트 블록 안의 <script> 태그를 실행하게 만들어주는 컴포넌트
+// 💡 브라우저가 차단한 script를 강제로 찾아서 실행시켜주는 마법의 래퍼 컴포넌트
 const HtmlWithScriptRenderer = ({ html, className, style }: { html: string, className?: string, style?: any }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (!containerRef.current) return;
 
-    // 1. dangerouslySetInnerHTML로 삽입된 HTML 내의 모든 script 태그를 찾음
     const scripts = Array.from(containerRef.current.querySelectorAll("script"));
-    
-    scripts.forEach((script) => {
-      // 2. 브라우저가 인식하고 실행할 수 있는 새로운 script 태그 생성
-      const newScript = document.createElement("script");
-      
-      // 3. 기존 script의 속성(src, type 등)을 그대로 복사
-      Array.from(script.attributes).forEach((attr) => {
-        newScript.setAttribute(attr.name, attr.value);
-      });
-      
-      // 💡 [핵심] 카카오맵 SDK 로드 후 실행되도록 순서를 보장 (동적 스크립트는 기본이 비동기임)
-      newScript.async = false; 
-      
-      // 4. 인라인 자바스크립트 코드 복사
-      if (script.innerHTML) {
-        newScript.innerHTML = script.innerHTML;
+    const externalScripts = scripts.filter((s) => s.src);
+    const inlineScripts = scripts.filter((s) => !s.src);
+
+    const loadScriptsAndExecute = async () => {
+      // 1. 카카오맵 SDK 다운로드 완료 대기
+      for (const script of externalScripts) {
+        await new Promise<void>((resolve) => {
+          const newScript = document.createElement("script");
+          Array.from(script.attributes).forEach((attr) => newScript.setAttribute(attr.name, attr.value));
+          newScript.onload = () => resolve();
+          newScript.onerror = () => resolve(); 
+          script.parentNode?.replaceChild(newScript, script);
+        });
       }
-      
-      // 5. 기존 죽어있는 script 태그를 살아있는 새 script 태그로 교체하여 실행 유도
-      script.parentNode?.replaceChild(newScript, script);
-    });
+
+      // 2. SDK 로드 후 지도 실행 코드(인라인 스크립트) 실행
+      inlineScripts.forEach((script) => {
+        const newScript = document.createElement("script");
+        if (script.innerHTML) newScript.innerHTML = script.innerHTML;
+        script.parentNode?.replaceChild(newScript, script);
+      });
+    };
+
+    loadScriptsAndExecute();
   }, [html]);
 
   return (
@@ -190,7 +193,7 @@ export default function BlockRenderer({ blocks }: { blocks: ContainerNode[] }) {
                   {/* 1. 텍스트 엘리먼트 */}
                   {el.type === "TEXT" && (
                     <HtmlWithScriptRenderer
-                      html={cleanHtmlForTheme(el.content)}
+                      html={cleanHtmlForTheme(el.content)} 
                       className="whitespace-pre-wrap break-words prose prose-slate dark:prose-invert max-w-none w-full"
                       style={{
                         fontSize: `${el.styles?.fontSize || 16}px`,
