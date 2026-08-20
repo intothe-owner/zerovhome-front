@@ -34,7 +34,7 @@ export default function TabMenu({ allMenus, currentMenuId }: TabMenuProps) {
           const isActive = tab.id === currentMenuId || (isParentMenu && index === 0);
           
           return (
-            <a
+            <Link
               key={tab.id}
               href={tab.url || '#'}
               className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
@@ -44,7 +44,7 @@ export default function TabMenu({ allMenus, currentMenuId }: TabMenuProps) {
               }`}
             >
               {tab.name}
-            </a>
+            </Link>
           );
         })}
       </div>
