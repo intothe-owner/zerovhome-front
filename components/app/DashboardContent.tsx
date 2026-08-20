@@ -1,83 +1,102 @@
 "use client";
 
-import Link from "next/link";
-import Swal from 'sweetalert2';
-import { ChangeEvent, FormEvent, useMemo, useState, useCallback } from "react";
-import SwipeableItem from "./SwipeableItem"; // 외부 스와이프 컴포넌트 가정
 import {
-  List,
-  Archive,
-  CheckCircle,
-  ChevronUp,
-  ChevronDown,
-  Trash2,
-  Plus,
-  Search,
-  Home
-} from "lucide-react";
-// import { openKakaoNavi } from "@/lib/navigation"; // 필요 시 주석 해제
+  ChangeEvent,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
+import Link from "next/link";
+import { useParams, useRouter, usePathname, useSearchParams } from "next/navigation";
+import { ChevronLeft, Phone, Camera, Loader2, List, Archive, CheckCircle, ChevronUp, ChevronDown, Trash2, Plus, Search, Home } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import Swal from 'sweetalert2';
+import SwipeableItem from "./SwipeableItem";
+import { openKakaoNavi } from "@/lib/navigation";
 
-const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
 type TabType = "LIST" | "ARCHIVE" | "COMPLETE";
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
 
-export default function DashboardPureUXUI() {
-  // --- UI/UX 상태 관리 ---
-  const [activeTab, setActiveTab] = useState<TabType>("LIST");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [sort, setSort] = useState("localNo");
-  const [order, setOrder] = useState("asc");
-  const [group, setGroup] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+// 목록 조회 API 헬퍼
+const fetchHouseholdList = async (params: any) => {
+  const { data } = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/households/list`, { params });
+  return data;
+};
 
-  // --- 가짜(Mock) 데이터 ---
-  const [items, setItems] = useState([
-    { id: 1, no: "2026-001", name: "김철수", phone: "010-1234-5678", roadAddress: "부산광역시 해운대구 반송로 123", isCancel: false, isArchive: false, isComplete: false },
-    { id: 2, no: "2026-002", name: "이영희", phone: "010-2345-6789", roadAddress: "부산광역시 해운대구 반송순환로 45", isCancel: false, isArchive: true, isComplete: false },
-    { id: 3, no: "2026-003", name: "박민수", phone: "010-3456-7890", roadAddress: "부산광역시 해운대구 재반로 67", isCancel: true, isArchive: false, isComplete: false },
-    { id: 4, no: "2026-004", name: "최동훈", phone: "010-1111-2222", roadAddress: "부산광역시 해운대구 해운대로 111", isCancel: false, isArchive: false, isComplete: true },
-    { id: 5, no: "2026-005", name: "정수진", phone: "010-5555-4444", roadAddress: "부산광역시 해운대구 우동1로 22", isCancel: false, isArchive: false, isComplete: false },
-  ]);
+export default function DashboardContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
-  // --- 상태별 필터링 ---
-  const displayedItems = useMemo(() => {
-    let result = items.filter(item => {
-      if (activeTab === "LIST") return !item.isArchive && !item.isComplete;
-      if (activeTab === "ARCHIVE") return item.isArchive && !item.isComplete;
-      if (activeTab === "COMPLETE") return item.isComplete;
-      return true;
-    });
+  const activeTab = (searchParams.get("tab") as TabType) || "LIST";
+  const page = Number(searchParams.get("page")) || 1;
+  const pageSize = Number(searchParams.get("pageSize")) || 20;
+  const sort = searchParams.get("sort") || "localNo";
+  const order = searchParams.get("order") || "asc";
+  const q = searchParams.get("q") || "";
+  const group = searchParams.get("group") || "";
 
-    if (searchInput) {
-      result = result.filter(item => 
-        item.name.includes(searchInput) || 
-        item.roadAddress.includes(searchInput) || 
-        item.phone.includes(searchInput)
-      );
-    }
+  const [searchInput, setSearchInput] = useState(q);
 
-    return result;
-  }, [items, activeTab, searchInput]);
+  const updateQueryParams = useCallback(
+    (newParams: Record<string, string | number | undefined>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(newParams).forEach(([key, value]) => {
+        if (value === undefined || value === "") params.delete(key);
+        else params.set(key, String(value));
+      });
+      router.push(`${pathname}?${params.toString()}`);
+    },
+    [router, pathname, searchParams]
+  );
 
-  const totalCompleted = items.filter(item => item.isComplete).length;
+  const queryParams = useMemo(() => ({
+    page, pageSize, sort, order, q,
+    isArchived: activeTab === "ARCHIVE",
+    isComplete: activeTab === "COMPLETE",
+  }), [page, pageSize, sort, order, q, activeTab]);
 
-  // --- UX 핸들러 ---
+  const { data: listData, isLoading, isError, error } = useQuery({
+    queryKey: ["households-list", queryParams],
+    queryFn: () => fetchHouseholdList(queryParams),
+  });
+
+  const items = listData?.items ?? [];
+  const pagination = listData?.pagination;
+
+  // ✅ 오류 해결 포인트: action 타입을 추가하여 어떤 API를 쏠지 명확히 구분
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, action, ...payload }: { id: number; action: "ARCHIVE" | "CANCEL"; [key: string]: any }) => {
+      if (action === "ARCHIVE") {
+         // 작업동선 추가/해제 및 완료 처리 (백엔드는 is_complete를 받음)
+         return await axios.patch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/households/${id}/archive`, payload);
+      }
+      if (action === "CANCEL") {
+         // 작업 취소 처리
+         return await axios.put(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/households/${id}`);
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["households-list"] }),
+  });
+
   const handleTabChange = (tab: TabType) => {
-    setActiveTab(tab);
-    setPage(1);
     setSearchInput("");
+    updateQueryParams({ tab, page: 1, q: "" });
   };
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
-    setPage(1);
+    updateQueryParams({ q: searchInput, page: 1 });
   };
 
-  // 취소 처리
   const handleDeleteTask = useCallback(async (id: number, name: string) => {
     const result = await Swal.fire({
       title: '취소 확인',
-      text: `${name}님의 작업을 취소하시겠습니까? 취소하시면 보고서 작성이 불가능합니다.`,
+      text: `${name}님의 작업을 취소하시겠습니까?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: '확인',
@@ -86,33 +105,19 @@ export default function DashboardPureUXUI() {
     });
 
     if (result.isConfirmed) {
-      setItems(prev => prev.map(item => 
-        item.id === id ? { ...item, isCancel: true, isArchive: false, isComplete: false } : item
-      ));
+      await updateStatusMutation.mutateAsync({ id, action: "CANCEL" });
       Swal.fire('취소됨', '성공적으로 취소되었습니다.', 'success');
     }
-  }, []);
+  }, [updateStatusMutation]);
 
-  // 보관/복구 토글 (스와이프)
-  const handleToggleArchive = async (id: number, name: string, isFromList: boolean) => {
-    setItems(prev => prev.map(item => 
-      item.id === id ? { ...item, isArchive: isFromList } : item
-    ));
-
-    const Toast = Swal.mixin({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 1500,
-      timerProgressBar: true,
-    });
-    Toast.fire({
-      icon: 'success',
-      title: isFromList ? '작업 동선에 추가됨' : '목록으로 복구됨'
-    });
+  // ✅ 스와이프 핸들러: action: "ARCHIVE" 추가
+  const handleToggleArchive = async (id: number, isFromList: boolean) => {
+    await updateStatusMutation.mutateAsync({ id, action: "ARCHIVE", is_complete: false });
+    Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500, timerProgressBar: true })
+      .fire({ icon: 'success', title: isFromList ? '작업 동선에 추가됨' : '목록으로 복구됨' });
   };
 
-  // 작업 완료 처리
+  // ✅ 완료 처리 핸들러: action: "ARCHIVE" 추가
   const handleCompleteTask = async (id: number, name: string) => {
     const result = await Swal.fire({
       title: '작업 완료 처리',
@@ -125,30 +130,24 @@ export default function DashboardPureUXUI() {
     });
 
     if (result.isConfirmed) {
-      setItems(prev => prev.map(item => 
-        item.id === id ? { ...item, isComplete: true, isArchive: false } : item
-      ));
+      await updateStatusMutation.mutateAsync({ id, action: "ARCHIVE", is_complete: true });
       Swal.fire('완료!', '작업이 완료 처리되었습니다.', 'success');
     }
   };
 
-  // 순서 변경
-  const handleMove = (index: number, direction: 'up' | 'down') => {
+  const handleMove = async (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= displayedItems.length) return;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+    
+    const dragId = items[index].id;
+    const dropId = items[targetIndex].id;
 
-    setItems(prev => {
-      const newItems = [...prev];
-      // 원본 배열에서의 실제 인덱스 찾기
-      const dragIndex = newItems.findIndex(i => i.id === displayedItems[index].id);
-      const dropIndex = newItems.findIndex(i => i.id === displayedItems[targetIndex].id);
-      
-      const temp = newItems[dragIndex];
-      newItems[dragIndex] = newItems[dropIndex];
-      newItems[dropIndex] = temp;
-      
-      return newItems;
-    });
+    try {
+      await axios.patch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/households/reorder`, { dragId, dropId });
+      queryClient.invalidateQueries({ queryKey: ["households-list"] });
+    } catch (error) {
+      alert("순서 변경에 실패했습니다.");
+    }
   };
 
   return (
@@ -164,216 +163,131 @@ export default function DashboardPureUXUI() {
       </header>
 
       <main className="mx-auto w-full max-w-md px-4 py-4 space-y-4">
+        {/* 통계 섹션 */}
         <section className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-xs text-gray-500">조회 건수</p>
-            <p className="mt-1 text-xl font-bold">{displayedItems.length}</p>
+            <p className="mt-1 text-xl font-bold">{pagination?.total ?? 0}</p>
           </div>
-
           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-gray-500">보고서 완료건수</p>
-            <p className="mt-1 text-xl font-bold">{totalCompleted}</p>
+            <p className="text-xs text-gray-500">상태</p>
+            <p className="mt-1 text-base font-bold text-blue-600">{isLoading ? "조회중" : "조회완료"}</p>
           </div>
         </section>
 
+        {/* 검색 섹션 */}
         <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="space-y-3">
             <div>
               <h2 className="text-lg font-bold">2026년 냉방기 세척 클린UP 사업<br /> 대상자 목록</h2>
-              <p className="mt-1 text-sm text-gray-500">
-                성명, 휴대폰, 대리인 연락처, 도로명주소로 검색할 수 있습니다.
-              </p>
             </div>
-
             <form onSubmit={handleSearch} className="space-y-3 max-w-md mx-auto">
               <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={group}
-                  onChange={(e) => setGroup(e.target.value)}
-                  className="hidden w-full rounded-xl border border-gray-300 px-3 py-3 text-sm outline-none focus:border-blue-500"
-                >
-                  <option value="">전체 그룹</option>
-                  <option value="vulnerable">취약계층</option>
-                  <option value="senior">어르신</option>
-                </select>
-
                 {activeTab !== "ARCHIVE" && (
                   <>
-                    <select
-                      value={sort}
-                      onChange={(e) => setSort(e.target.value)}
-                      className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm outline-none focus:border-blue-500"
-                    >
+                    <select value={sort} onChange={(e) => updateQueryParams({ sort: e.target.value, page: 1 })} className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm outline-none bg-white">
                       <option value="localNo">연번 정렬</option>
                       <option value="dong">동별 정렬</option>
                     </select>
-                    <select
-                      value={order}
-                      onChange={(e) => setOrder(e.target.value)}
-                      className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm outline-none focus:border-blue-500"
-                    >
+                    <select value={order} onChange={(e) => updateQueryParams({ order: e.target.value, page: 1 })} className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm outline-none bg-white">
                       <option value="asc">오름차순</option>
                       <option value="desc">내림차순</option>
                     </select>
                   </>
                 )}
-
-                <select
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm outline-none focus:border-blue-500"
-                >
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <option key={size} value={size}>
-                      {size}개씩 보기
-                    </option>
-                  ))}
+                <select value={pageSize} onChange={(e) => updateQueryParams({ pageSize: e.target.value, page: 1 })} className="w-full rounded-xl border border-gray-300 px-3 py-3 text-sm outline-none bg-white col-span-2">
+                  {PAGE_SIZE_OPTIONS.map((size) => (<option key={size} value={size}>{size}개씩 보기</option>))}
                 </select>
               </div>
 
               <div className="relative">
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="성명 / 휴대폰 / 주소 검색"
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-blue-500"
-                />
+                <input type="text" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="검색어 입력" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none bg-white" />
                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               </div>
+              <button type="submit" className="w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white hover:bg-gray-800">검색하기</button>
             </form>
           </div>
         </section>
 
+        {/* 리스트 본문 */}
         <section className="space-y-3">
-          {displayedItems.length === 0 ? (
-            <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500 shadow-sm">
-              조회된 데이터가 없습니다.
-            </div>
-          ) : displayedItems.map((item, index) => (
-            <SwipeableItem
-              key={item.id}
-              isArchive={activeTab === "ARCHIVE"}
-              onArchive={
-                activeTab === "COMPLETE" || item.isCancel
-                  ? undefined
-                  : () => handleToggleArchive(item.id, item.name, activeTab === "LIST")
-              }
-            >
-              <div className={`relative block p-4 transition ${item.isCancel ? 'bg-gray-50 opacity-60 grayscale pointer-events-none select-none' : 'active:bg-gray-50 bg-white'}`}>
-                <div className="flex items-start justify-between">
-                  <Link href={item.isCancel ? '#' : `/mobile/views/${item.id}`} onClick={(e) => { if (item.isCancel) e.preventDefault(); }} className="flex-1 block">
-                    <p className="text-[11px] font-medium text-gray-400">연번 {item.no ?? "-"}</p>
-                    <h3 className="mt-0.5 text-lg font-extrabold text-blue-600 inline-block">{item.name}</h3>
+          {isLoading ? (
+             <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
+          ) : isError ? (
+             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error?.message || "오류"}</div>
+          ) : items.length === 0 ? (
+             <div className="rounded-2xl border border-gray-200 bg-white px-4 py-10 text-center text-sm text-gray-500">데이터가 없습니다.</div>
+          ) : (
+            items.map((item: any, index: number) => (
+              <SwipeableItem
+                key={item.id}
+                isArchive={activeTab === "ARCHIVE"}
+                onArchive={activeTab === "COMPLETE" || item.isCancel ? undefined : () => handleToggleArchive(item.id, activeTab === "LIST")}
+              >
+                <div className={`relative block p-4 transition ${item.isCancel ? 'bg-gray-50 opacity-60 grayscale pointer-events-none' : 'active:bg-gray-50 bg-white'}`}>
+                  <div className="flex items-start justify-between">
+                    <Link href={item.isCancel ? '#' : `/mobile/views/${item.id}`} className="flex-1 block">
+                      <p className="text-[11px] font-medium text-gray-400">연번 {item.localNo}</p>
+                      <h3 className="mt-0.5 text-lg font-extrabold text-blue-600 inline-block">{item.name}</h3>
+                    </Link>
+
+                    <div className="flex items-center gap-2">
+                      {(activeTab === "LIST" || activeTab === "ARCHIVE") && (
+                        <button type="button" onClick={() => handleDeleteTask(item.id, item.name)} className="flex flex-col items-center justify-center rounded-lg border border-red-500 p-1 px-2 text-red-500">
+                          <Trash2 size={20} /><span className="text-[10px] font-bold">취소</span>
+                        </button>
+                      )}
+                      {activeTab === "ARCHIVE" && (
+                        <button type="button" onClick={() => handleCompleteTask(item.id, item.name)} className="flex flex-col items-center justify-center rounded-lg border border-blue-600 p-1 px-2 text-blue-600">
+                          <CheckCircle size={20} /><span className="text-[10px] font-bold">완료</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <Link href={item.isCancel ? '#' : `/app/clean/${item.id}`} className="block mt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 space-y-1 text-[13px]">
+                        <div className="flex items-center gap-3"><span className="w-16 font-semibold text-gray-400">휴대폰</span><span className="font-medium text-gray-700">{item.phone}</span></div>
+                        <div className="flex items-center gap-3"><span className="w-16 font-semibold text-gray-400">주소</span><span className="flex-1 truncate font-medium text-gray-700">{item.roadAddress}</span></div>
+                      </div>
+                      
+                      {activeTab === "ARCHIVE" && (
+                        <div className="flex flex-col gap-1 border-l border-gray-100 pl-3">
+                          <button type="button" onClick={(e) => { e.preventDefault(); handleMove(index, 'up'); }} disabled={index === 0} className="rounded-md bg-gray-50 p-1.5 disabled:opacity-20"><ChevronUp size={20} className="text-gray-600" /></button>
+                          <button type="button" onClick={(e) => { e.preventDefault(); handleMove(index, 'down'); }} disabled={index === items.length - 1} className="rounded-md bg-gray-50 p-1.5 disabled:opacity-20"><ChevronDown size={20} className="text-gray-600" /></button>
+                        </div>
+                      )}
+                    </div>
                   </Link>
 
-                  <div className="flex items-center gap-2">
-                    {(activeTab === "LIST" || activeTab === "ARCHIVE") && (
+                  {activeTab === "ARCHIVE" && (
+                    <div className="mt-4 border-t border-gray-100 pt-3">
                       <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteTask(item.id, item.name); }}
-                        className="flex flex-col items-center justify-center rounded-lg border border-red-500 p-1 px-2 text-red-500 active:bg-red-50"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          openKakaoNavi(item.roadAddress, item.longitude ?? "", item.latitude ?? "");
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FEE500] py-3 text-sm font-bold text-[#191919] active:opacity-80"
                       >
-                        <Trash2 size={20} />
-                        <span className="text-[10px] font-bold">취소</span>
+                        <img src="/icons/kakaonavi.png" alt="" className="w-5 h-5" />
+                        카카오내비 길안내 시작
                       </button>
-                    )}
-
-                    {activeTab === "ARCHIVE" && (
-                      <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCompleteTask(item.id, item.name); }}
-                        className="flex flex-col items-center justify-center rounded-lg border border-blue-600 p-1 px-2 text-blue-600 active:bg-blue-50"
-                      >
-                        <CheckCircle size={20} />
-                        <span className="text-[10px] font-bold">완료</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <Link href={item.isCancel ? '#' : `/mobile/views/${item.id}`} onClick={(e) => { if (item.isCancel) e.preventDefault(); }} className="block mt-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 space-y-1 text-[13px]">
-                      <div className="flex items-center gap-3">
-                        <span className="w-16 font-semibold text-gray-400">휴대폰</span>
-                        <span className="font-medium text-gray-700">{item.phone || "-"}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="w-16 font-semibold text-gray-400">도로명주소</span>
-                        <span className="flex-1 truncate font-medium text-gray-700">
-                          {item.roadAddress || "-"}
-                        </span>
-                      </div>
                     </div>
-
-                    {activeTab === "ARCHIVE" && (
-                      <div className="flex flex-col gap-1 border-l border-gray-100 pl-3">
-                        <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleMove(index, 'up'); }}
-                          disabled={index === 0}
-                          className="rounded-md bg-gray-50 p-1.5 disabled:opacity-20"
-                        >
-                          <ChevronUp size={20} className="text-gray-600" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleMove(index, 'down'); }}
-                          disabled={index === displayedItems.length - 1}
-                          className="rounded-md bg-gray-50 p-1.5 disabled:opacity-20"
-                        >
-                          <ChevronDown size={20} className="text-gray-600" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </Link>
-
-                {activeTab === "ARCHIVE" && (
-                  <div className="mt-4 border-t border-gray-100 pt-3">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        alert("카카오내비 길안내 실행 (UI 테스트)");
-                        // openKakaoNavi(item.roadAddress, "", "");
-                      }}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FEE500] py-3 text-sm font-bold text-[#191919] active:opacity-80"
-                    >
-                      <img src="/icons/kakaonavi.png" alt="" className="w-5 h-5" />
-                      카카오내비 길안내 시작
-                    </button>
-                  </div>
-                )}
-              </div>
-            </SwipeableItem>
-          ))}
+                  )}
+                </div>
+              </SwipeableItem>
+            ))
+          )}
         </section>
 
+        {/* 하단 페이지네이션 */}
         <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm mb-20">
           <div className="space-y-3">
-            <div className="text-center text-sm text-gray-500">
-              총 <span className="font-semibold text-gray-900">{displayedItems.length}</span>건
-              {" / "} {page} 페이지
-            </div>
-
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page <= 1}
-                className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm font-semibold disabled:opacity-50"
-              >
-                이전
-              </button>
-
-              <div className="min-w-[72px] text-center text-sm font-medium text-gray-900">
-                {page} / 1
-              </div>
-
-              <button
-                type="button"
-                disabled={true}
-                className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm font-semibold disabled:opacity-50"
-              >
-                다음
-              </button>
+              <button type="button" onClick={() => updateQueryParams({ page: page - 1 })} disabled={page <= 1} className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm font-semibold disabled:opacity-50">이전</button>
+              <div className="min-w-[72px] text-center text-sm font-medium text-gray-900">{page} / {pagination?.totalPages || 1}</div>
+              <button type="button" onClick={() => updateQueryParams({ page: page + 1 })} disabled={!pagination || page >= pagination.totalPages} className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm font-semibold disabled:opacity-50">다음</button>
             </div>
           </div>
         </section>
@@ -381,45 +295,13 @@ export default function DashboardPureUXUI() {
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white/95 pb-safe backdrop-blur">
         <div className="mx-auto flex h-16 max-w-md items-center justify-around">
-          <button
-            onClick={() => alert("홈으로 이동 (UI 테스트)")}
-            className={`flex flex-col items-center gap-1 `}
-          >
-            <Home size={20} />
-            <span className="text-[10px] font-bold">홈</span>
-          </button>
-          <button
-            onClick={() => handleTabChange("LIST")}
-            className={`flex flex-col items-center gap-1 ${activeTab === "LIST" ? "text-blue-600" : "text-gray-400"}`}
-          >
-            <List size={20} />
-            <span className="text-[10px] font-bold">청소목록</span>
-          </button>
-
-          <button
-            onClick={() => handleTabChange("ARCHIVE")}
-            className={`flex flex-col items-center gap-1 ${activeTab === "ARCHIVE" ? "text-blue-600" : "text-gray-400"}`}
-          >
-            <Archive size={20} />
-            <span className="text-[10px] font-bold">작업동선</span>
-          </button>
-
-          <button
-            onClick={() => handleTabChange("COMPLETE")}
-            className={`flex flex-col items-center gap-1 ${activeTab === "COMPLETE" ? "text-green-600" : "text-gray-400"}`}
-          >
-            <CheckCircle size={20} />
-            <span className="text-[10px] font-bold">작업완료</span>
-          </button>
+          <button onClick={() => router.push('/')} className="flex flex-col items-center gap-1 text-gray-400"><Home size={20} /><span className="text-[10px] font-bold">홈</span></button>
+          <button onClick={() => handleTabChange("LIST")} className={`flex flex-col items-center gap-1 ${activeTab === "LIST" ? "text-blue-600" : "text-gray-400"}`}><List size={20} /><span className="text-[10px] font-bold">청소목록</span></button>
+          <button onClick={() => handleTabChange("ARCHIVE")} className={`flex flex-col items-center gap-1 ${activeTab === "ARCHIVE" ? "text-blue-600" : "text-gray-400"}`}><Archive size={20} /><span className="text-[10px] font-bold">작업동선</span></button>
+          <button onClick={() => handleTabChange("COMPLETE")} className={`flex flex-col items-center gap-1 ${activeTab === "COMPLETE" ? "text-green-600" : "text-gray-400"}`}><CheckCircle size={20} /><span className="text-[10px] font-bold">작업완료</span></button>
         </div>
       </nav>
-
-      <Link
-        href="/mobile/register"
-        className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-xl transition-transform active:scale-95"
-      >
-        <Plus size={28} />
-      </Link>
+      <Link href="/mobile/register" className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-xl"><Plus size={28} /></Link>
     </div>
   );
-};
+}
