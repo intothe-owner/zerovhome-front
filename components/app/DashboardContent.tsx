@@ -295,7 +295,7 @@ export default function DashboardContent() {
 
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white/95 pb-safe backdrop-blur">
         <div className="mx-auto flex h-16 max-w-md items-center justify-around">
-          <button onClick={() => router.push('/')} className="flex flex-col items-center gap-1 text-gray-400"><Home size={20} /><span className="text-[10px] font-bold">홈</span></button>
+          <button onClick={() => router.push('/app')} className="flex flex-col items-center gap-1 text-gray-400"><Home size={20} /><span className="text-[10px] font-bold">홈</span></button>
           <button onClick={() => handleTabChange("LIST")} className={`flex flex-col items-center gap-1 ${activeTab === "LIST" ? "text-blue-600" : "text-gray-400"}`}><List size={20} /><span className="text-[10px] font-bold">청소목록</span></button>
           <button onClick={() => handleTabChange("ARCHIVE")} className={`flex flex-col items-center gap-1 ${activeTab === "ARCHIVE" ? "text-blue-600" : "text-gray-400"}`}><Archive size={20} /><span className="text-[10px] font-bold">작업동선</span></button>
           <button onClick={() => handleTabChange("COMPLETE")} className={`flex flex-col items-center gap-1 ${activeTab === "COMPLETE" ? "text-green-600" : "text-gray-400"}`}><CheckCircle size={20} /><span className="text-[10px] font-bold">작업완료</span></button>
