@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { ChevronLeft, MapPin, Building, User, Phone, Wind, FileText, Check, Loader2, X } from "lucide-react";
-import axios from "axios"; // ✅ axios 임포트
-import { useQueryClient } from "@tanstack/react-query"; // ✅ React Query 임포트
+import axios from "axios";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import Script from "next/script";
 
 declare global {
@@ -17,6 +17,7 @@ declare global {
 const MobileSeniorRegisterPage = () => {
     const router = useRouter();
     const queryClient = useQueryClient();
+
     // 모달 상태 및 Ref
     const [isAddrModalOpen, setIsAddrModalOpen] = useState<boolean>(false);
     const [isMapLoaded, setIsMapLoaded] = useState<boolean>(false);
@@ -40,7 +41,23 @@ const MobileSeniorRegisterPage = () => {
         remark: "",
     });
 
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    // ✅ 백엔드 데이터 등록 Mutation (React Query)
+    const createSeniorCenterMutation = useMutation({
+        mutationFn: async (data: typeof formData) => {
+            const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/senior`, data);
+            return response.data;
+        },
+        onSuccess: () => {
+            alert("경로당이 성공적으로 등록되었습니다.");
+            // 등록 완료 시 기존 목록 캐시 만료 및 라우팅
+            queryClient.invalidateQueries({ queryKey: ["senior-centers-list"] });
+            router.push('/app/senior');
+        },
+        onError: (error: any) => {
+            console.error("등록 API 에러:", error);
+            alert(error.response?.data?.message || "서버 오류로 인해 등록에 실패했습니다.");
+        }
+    });
 
     // 다음 우편번호 스크립트 로드
     useEffect(() => {
@@ -107,7 +124,6 @@ const MobileSeniorRegisterPage = () => {
                         const geocoder = new window.kakao.maps.services.Geocoder();
                         
                         geocoder.addressSearch(addr, (result: any, status: any) => {
-
                             if (status === window.kakao.maps.services.Status.OK) {
                                 setFormData((prev) => ({
                                     ...prev,
@@ -129,57 +145,37 @@ const MobileSeniorRegisterPage = () => {
         }
     }, [isAddrModalOpen]);
 
-    const handleSubmit = async () => {
+    // 최종 등록 제출 핸들러
+    const handleSubmit = () => {
         if (!formData.name || !formData.roadAddress) {
             alert("경로당명과 주소는 필수 입력 항목입니다.");
             return;
         }
 
-        setIsSubmitting(true);
-        try {
-            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-            
-            // ✅ 백엔드로 POST 요청 전송 (엔드포인트 경로를 실제 라우터 설정에 맞게 확인해주세요)
-            const response = await axios.post(`${baseUrl}/senior`, formData);
-
-            if (response.data.ok) {
-                alert("등록되었습니다.");
-                
-                // ✅ 목록 페이지 캐시 무효화 (뒤로 가기 시 최신 데이터 반영)
-                queryClient.invalidateQueries({ queryKey: ["senior-centers"] });
-                
-                router.push('/mobile/senior')
-            } else {
-                alert(response.data.message || "등록에 실패했습니다.");
-            }
-        } catch (error) {
-            console.error("등록 API 에러:", error);
-            alert("서버 오류로 인해 등록에 실패했습니다.");
-        } finally {
-            setIsSubmitting(false);
-        }
+        // Mutation 실행
+        createSeniorCenterMutation.mutate(formData);
     };
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900 pb-24">
-             {/* 2. Kakao Maps SDK 로드 (Next.js Script 컴포넌트 활용) */}
+             {/* Kakao Maps SDK 로드 (Next.js Script 컴포넌트 활용) */}
             <Script
-    src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services&autoload=false`}
-    strategy="afterInteractive"
-    onLoad={() => {
-        if (window.kakao && window.kakao.maps) {
-            window.kakao.maps.load(() => {
-                console.log("카카오맵 SDK 로드 완료");
-                setIsMapLoaded(true);
-            });
-        }
-    }}
-    onError={(e) => {
-        console.log(e);
-        console.error("카카오맵 SDK 스크립트 로드 실패. API 키나 도메인 설정을 확인하세요.", e);
-        alert("지도 설정을 불러오는 데 실패했습니다. 관리자에게 문의하세요.");
-    }}
-/>
+                src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=f560bf58d09c10884b45a0e3ce3e733d&libraries=services&autoload=false`}
+                strategy="afterInteractive"
+                onLoad={() => {
+                    if (window.kakao && window.kakao.maps) {
+                        window.kakao.maps.load(() => {
+                            console.log("카카오맵 SDK 로드 완료");
+                            setIsMapLoaded(true);
+                        });
+                    }
+                }}
+                onError={(e) => {
+                    console.log(e);
+                    console.error("카카오맵 SDK 스크립트 로드 실패. API 키나 도메인 설정을 확인하세요.", e);
+                    alert("지도 설정을 불러오는 데 실패했습니다. 관리자에게 문의하세요.");
+                }}
+            />
             {/* 상단 헤더 */}
             <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
                 <div className="relative flex h-14 items-center justify-between px-4">
@@ -272,11 +268,11 @@ const MobileSeniorRegisterPage = () => {
                         />
                         
                         {/* 좌표 디버깅 */}
-                        {formData.lat && formData.lng && (
+                        {(formData.lat && formData.lng) ? (
                             <div className="text-[10px] text-gray-400 bg-gray-50 p-2 rounded-lg break-all">
                                 📍 위도: {formData.lat} / 경도: {formData.lng}
                             </div>
-                        )}
+                        ) : null}
                     </div>
                 </section>
 
@@ -372,11 +368,11 @@ const MobileSeniorRegisterPage = () => {
                 <div className="mx-auto max-w-md px-4 py-3">
                     <button
                         onClick={handleSubmit}
-                        disabled={isSubmitting}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 text-base font-bold text-white shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:bg-gray-300"
+                        disabled={createSeniorCenterMutation.isPending}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 text-lg font-bold text-white shadow-lg shadow-blue-200 active:scale-[0.98] active:bg-blue-700 transition disabled:bg-gray-400 disabled:shadow-none"
                     >
-                        {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
-                        등록 완료하기
+                        {createSeniorCenterMutation.isPending ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                        {createSeniorCenterMutation.isPending ? "등록 중..." : "등록 완료하기"}
                     </button>
                 </div>
             </div>
@@ -384,7 +380,7 @@ const MobileSeniorRegisterPage = () => {
             {/* --- 주소 검색 모달 --- */}
             {isAddrModalOpen && (
                 <div className="fixed inset-0 z-50 flex flex-col bg-white animate-in fade-in slide-in-from-bottom-4 duration-300">
-                    <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+                    <div className="flex items-center justify-between border-b px-4 py-3">
                         <h2 className="text-lg font-bold">주소 검색</h2>
                         <button
                             onClick={() => setIsAddrModalOpen(false)}

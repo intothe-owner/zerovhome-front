@@ -230,7 +230,7 @@ export default function SeniorCenterPureList() {
                     </div>
                   </div>
 
-                  <Link href={item.isCancel ? '#' : `/mobile/views/${item.id}`} className="block mt-3">
+                  <Link href={item.isCancel ? '#' : `/app/senior/${item.id}`} className="block mt-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex-1 space-y-1 text-[13px]">
                         <div className="flex items-center gap-3"><span className="w-16 font-semibold text-gray-400">담당자</span><span className="font-medium text-gray-700">{item.managerName || "-"} / {item.managerPhone || "-"}</span></div>
@@ -264,7 +264,7 @@ export default function SeniorCenterPureList() {
           <button onClick={() => handleTabChange("COMPLETE")} className={`flex flex-col items-center gap-1 ${activeTab === "COMPLETE" ? "text-green-600" : "text-gray-400"}`}><CheckCircle size={20} /><span className="text-[10px] font-bold">작업완료</span></button>
         </div>
       </nav>
-      <Link href="/mobile/register" className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-xl"><Plus size={28} /></Link>
+      <Link href="/app/senior/register" className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-xl"><Plus size={28} /></Link>
     </div>
   );
 }
