@@ -226,7 +226,7 @@ export default function DashboardContent() {
               >
                 <div className={`relative block p-4 transition ${item.isCancel ? 'bg-gray-50 opacity-60 grayscale pointer-events-none' : 'active:bg-gray-50 bg-white'}`}>
                   <div className="flex items-start justify-between">
-                    <Link href={item.isCancel ? '#' : `/mobile/views/${item.id}`} className="flex-1 block">
+                    <Link href={item.isCancel ? '#' : `/app/clean/${item.id}`} className="flex-1 block">
                       <p className="text-[11px] font-medium text-gray-400">연번 {item.localNo}</p>
                       <h3 className="mt-0.5 text-lg font-extrabold text-blue-600 inline-block">{item.name}</h3>
                     </Link>
@@ -301,7 +301,7 @@ export default function DashboardContent() {
           <button onClick={() => handleTabChange("COMPLETE")} className={`flex flex-col items-center gap-1 ${activeTab === "COMPLETE" ? "text-green-600" : "text-gray-400"}`}><CheckCircle size={20} /><span className="text-[10px] font-bold">작업완료</span></button>
         </div>
       </nav>
-      <Link href="/mobile/register" className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-xl"><Plus size={28} /></Link>
+      <Link href="/app/clean/register" className="fixed bottom-20 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-xl"><Plus size={28} /></Link>
     </div>
   );
 }

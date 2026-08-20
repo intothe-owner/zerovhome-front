@@ -389,7 +389,7 @@ export default function MobileDetailPage() {
 
     try {
       setPdfLoading(true);
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/work-reports/household/${item.id}/pdf`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/work-reports/${item.id}/pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

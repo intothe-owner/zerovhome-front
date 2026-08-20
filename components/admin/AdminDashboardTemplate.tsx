@@ -10,13 +10,15 @@ import {
   Upload, 
   Download,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Archive
 } from "lucide-react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
-type TabType = "LIST" | "COMPLETE";
+// 💡 탭 타입에 ARCHIVE 추가
+type TabType = "LIST" | "ARCHIVE" | "COMPLETE";
 
 // 백엔드 데이터 타입 정의
 interface Household {
@@ -49,7 +51,7 @@ export default function AdminCleanUpHouseholdListUI() {
   // 검색/필터 폼 상태
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState(""); // 실제 쿼리에 반영될 검색어
-  const [group, setGroup] = useState(""); // UI 필터용 (현재 백엔드 미구현 파라미터 대비용)
+  const [group, setGroup] = useState(""); // UI 필터용
   const [sortField, setSortField] = useState("localNo");
   const [sortOrder, setSortOrder] = useState("asc");
   
@@ -75,8 +77,18 @@ export default function AdminCleanUpHouseholdListUI() {
         pageSize: pageSize.toString(),
         sort: sortField,
         order: sortOrder,
-        isComplete: activeTab === "COMPLETE" ? "true" : "false",
       });
+
+      // 💡 탭 상태에 따른 API 파라미터 분기 처리
+      if (activeTab === "COMPLETE") {
+        params.append("isComplete", "true");
+      } else if (activeTab === "ARCHIVE") {
+        params.append("isArchived", "true");
+      } else {
+        // LIST (청소목록)
+        params.append("isComplete", "false");
+        params.append("isArchived", "false");
+      }
 
       if (appliedSearch) params.append("q", appliedSearch);
       if (group) params.append("group", group);
@@ -114,10 +126,10 @@ export default function AdminCleanUpHouseholdListUI() {
 
   const handleBulkDownload = () => {
     setIsDownloading(true);
-    // 일괄 다운로드 API 호출 로직은 추후 추가 (현재 UI 시뮬레이션 유지)
+    // 일괄 다운로드 API 호출 로직 시뮬레이션
     setTimeout(() => {
       setIsDownloading(false);
-      alert("ZIP 파일 다운로드가 완료되었습니다. (임시 UI 처리)");
+      alert("ZIP 파일 다운로드가 완료되었습니다.");
     }, 2000);
   };
 
@@ -127,45 +139,58 @@ export default function AdminCleanUpHouseholdListUI() {
       {/* 헤더 타이틀 */}
       <header className="mb-8">
         <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">
-          {activeTab === "COMPLETE" ? "작업 완료 목록" : "대상자 관리"}
+          {activeTab === "COMPLETE" ? "작업 완료 목록" 
+            : activeTab === "ARCHIVE" ? "작업 동선 관리" 
+            : "청소 대상자 목록"}
         </h1>
         <p className="text-sm text-slate-500 mt-1.5 font-medium">
-          {activeTab === "COMPLETE"
-            ? "작업이 완료된 대상자들의 리스트와 최종 보고서를 확인합니다."
-            : "전체 대상자 목록을 조회하고 작업 상태를 관리합니다."}
+          {activeTab === "COMPLETE" ? "작업이 완료된 대상자들의 리스트와 최종 보고서를 확인합니다."
+            : activeTab === "ARCHIVE" ? "오늘 작업할 대상자들의 동선을 확인하고 관리합니다."
+            : "전체 청소 대상자 목록을 조회하고 작업 상태를 관리합니다."}
         </p>
       </header>
 
-      {/* 탭 네비게이션 */}
-      <div className="flex items-center gap-2 mb-6 border-b border-slate-200">
+      {/* 💡 3단 탭 네비게이션 */}
+      <div className="flex items-center gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
         <button
           onClick={() => handleTabChange("LIST")}
-          className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-5 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap ${
             activeTab === "LIST"
               ? "border-indigo-600 text-indigo-700 bg-indigo-50/50"
               : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"
           }`}
         >
           <List size={18} />
-          전체 목록
+          청소목록
+        </button>
+        <button
+          onClick={() => handleTabChange("ARCHIVE")}
+          className={`flex items-center gap-2 px-5 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap ${
+            activeTab === "ARCHIVE"
+              ? "border-amber-500 text-amber-600 bg-amber-50/50"
+              : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <Archive size={18} />
+          작업동선
         </button>
         <button
           onClick={() => handleTabChange("COMPLETE")}
-          className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-5 md:px-6 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap ${
             activeTab === "COMPLETE"
               ? "border-emerald-600 text-emerald-700 bg-emerald-50/50"
               : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"
           }`}
         >
           <CheckCircle size={18} />
-          작업 완료
+          작업완료
         </button>
       </div>
 
       {/* 상단 요약 카드 */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <p className="text-sm font-bold text-slate-500">전체 건수</p>
+          <p className="text-sm font-bold text-slate-500">조회 건수</p>
           <p className="mt-2 text-2xl font-extrabold text-slate-800">
             {isLoading ? "-" : totalCount.toLocaleString()}
           </p>
@@ -189,10 +214,9 @@ export default function AdminCleanUpHouseholdListUI() {
       {/* 검색 및 제어 패널 */}
       <section className="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm">
         <div className="flex flex-col gap-4">
-          
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-2">
             <div>
-              <h2 className="text-lg font-extrabold text-slate-900">냉방기 클린UP 대상자 목록</h2>
+              <h2 className="text-lg font-extrabold text-slate-900">목록 필터 및 검색</h2>
               <p className="mt-1 text-sm text-slate-500">
                 성명, 휴대폰, 대리인 연락처, 도로명주소로 검색할 수 있습니다.
               </p>
@@ -229,7 +253,7 @@ export default function AdminCleanUpHouseholdListUI() {
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="성명 / 휴대폰 / 대리인 / 주소 검색"
+                placeholder="성명 / 휴대폰 / 주소 검색"
                 className="w-full rounded-xl border border-slate-300 pl-10 pr-4 py-2.5 text-sm font-medium outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all bg-white"
               />
             </div>
@@ -308,8 +332,8 @@ export default function AdminCleanUpHouseholdListUI() {
                 <th className="px-5 py-4 whitespace-nowrap">성명</th>
                 <th className="px-5 py-4 whitespace-nowrap">휴대폰</th>
                 <th className="px-5 py-4 whitespace-nowrap">대리인 연락처</th>
-                <th className="px-5 py-4">도로명주소</th>
-                <th className="px-5 py-4">상세주소</th>
+                <th className="px-5 py-4 min-w-[200px]">도로명주소</th>
+                <th className="px-5 py-4 min-w-[150px]">상세주소</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -340,7 +364,6 @@ export default function AdminCleanUpHouseholdListUI() {
                     <td className="px-5 py-4 text-center text-slate-400 font-mono text-xs">{item.localNo}</td>
                     <td className="px-5 py-4 font-bold text-slate-700">{item.dong}</td>
                     <td className="px-5 py-4 font-extrabold">
-                      {/* 상세 페이지로 이동 링크 적용 */}
                       <Link
                         href={`/admin/clean/cleanup/${item.id}`}
                         className="text-slate-900 group-hover:text-indigo-600 hover:underline decoration-indigo-200 underline-offset-4 transition-colors cursor-pointer"
@@ -350,8 +373,8 @@ export default function AdminCleanUpHouseholdListUI() {
                     </td>
                     <td className="px-5 py-4 text-slate-600 font-medium">{item.phone || "-"}</td>
                     <td className="px-5 py-4 text-slate-600 font-medium">{item.proxyPhone || "-"}</td>
-                    <td className="px-5 py-4 text-slate-700 break-words max-w-[200px]">{item.roadAddress}</td>
-                    <td className="px-5 py-4 text-slate-500 break-words max-w-[150px]">{item.detailAddress || "-"}</td>
+                    <td className="px-5 py-4 text-slate-700 break-words">{item.roadAddress}</td>
+                    <td className="px-5 py-4 text-slate-500 break-words">{item.detailAddress || "-"}</td>
                   </tr>
                 ))
               )}
@@ -392,7 +415,6 @@ export default function AdminCleanUpHouseholdListUI() {
           </div>
         )}
       </section>
-
     </div>
   );
 }

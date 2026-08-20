@@ -1032,7 +1032,7 @@ export default function VisualPageBuilder() {
     });
     const newCells = { ...tableData.cells };
     const topLeftKey = `${minR}-${minC}`;
-    newCells[topLeftKey].rowSpan = maxR - minR + 1;
+    newCells[topLeftKey].rowSpan = maxR - minR + 1; 
     newCells[topLeftKey].colSpan = maxC - minC + 1;
     for (let r = minR; r <= maxR; r++) {
       for (let c = minC; c <= maxC; c++) {
