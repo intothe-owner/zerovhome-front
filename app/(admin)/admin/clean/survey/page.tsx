@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { 
   Plus, 
   Trash2, 
@@ -9,8 +9,10 @@ import {
   Save, 
   RefreshCw,
   CheckCircle2,
-  FileText
+  FileText,
+  AlertCircle
 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 type SurveyQuestionType = "multiple" | "subjective";
 
@@ -46,21 +48,112 @@ const createSubjectiveQuestion = (): SubjectiveQuestion => ({
 });
 
 export default function AdminSurveyUI() {
-  // --- UI 테스트용 로컬 상태 ---
-  const [surveyTitle, setSurveyTitle] = useState(
-    "2026년 해운대구 냉방기 클린UP 건강프로젝트 사업 만족도조사"
-  );
-  const [surveyIntro, setSurveyIntro] = useState(
-    "안녕하세요?\n본 설문의 목적은 사업 만족도 조사를 통해 더 나은 서비스를 제공하고 의견을 반영하기 위함입니다. 바쁘시더라도 정성껏 응답해 주시기 바랍니다."
-  );
+  const queryClient = useQueryClient();
+
+  const [surveyTitle, setSurveyTitle] = useState("");
+  const [surveyIntro, setSurveyIntro] = useState("");
 
   const [draftType, setDraftType] = useState<SurveyQuestionType>("multiple");
   const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [submittedQuestions, setSubmittedQuestions] = useState<SurveyQuestion[]>([]);
   
   const [message, setMessage] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
+
+  // --- API: 활성 설문 조회 (GET /api/survey/active) ---
+  const { data: activeSurveyData, isLoading: isFetching } = useQuery({
+    queryKey: ["activeSurvey"],
+    queryFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/survey/active`);
+      if (!res.ok) {
+        if (res.status === 404) return null; // 활성 설문이 없는 경우
+        throw new Error("설문 정보를 불러오는데 실패했습니다.");
+      }
+      return res.json();
+    },
+  });
+
+  // 서버에서 불러온 데이터를 폼과 미리보기에 동기화
+  useEffect(() => {
+    if (activeSurveyData?.item) {
+      const { title, intro, questions: savedQuestions } = activeSurveyData.item;
+      setSurveyTitle(title || "");
+      setSurveyIntro(intro || "");
+      
+      const parsed = typeof savedQuestions === "string" 
+        ? JSON.parse(savedQuestions) 
+        : (savedQuestions || []);
+        
+      setQuestions(parsed);
+      setSubmittedQuestions(parsed);
+    } else if (activeSurveyData === null) {
+      setSurveyTitle("2026년 해운대구 냉방기 클린UP 건강프로젝트 사업 만족도조사");
+      setSurveyIntro("안녕하세요?\n본 설문의 목적은 사업 만족도 조사를 통해 더 나은 서비스를 제공하고 의견을 반영하기 위함입니다. 바쁘시더라도 정성껏 응답해 주시기 바랍니다.");
+      setQuestions([]);
+      setSubmittedQuestions([]);
+    }
+  }, [activeSurveyData]);
+
+  // --- API: 설문 저장 Mutation (POST /api/survey) ---
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        title: surveyTitle,
+        intro: surveyIntro,
+        questions: questions,
+      };
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/survey`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "설문 등록에 실패했습니다.");
+      return data;
+    },
+    onSuccess: (data) => {
+      setMessage(data.message || "설문이 성공적으로 저장되었습니다.");
+      
+      const normalizedSubmitted = questions.map((q) =>
+        q.type === "multiple"
+          ? { ...q, options: [...q.options] as [string, string, string, string, string] }
+          : { ...q }
+      );
+      setSubmittedQuestions(normalizedSubmitted);
+      
+      // 최신 상태 리패치
+      queryClient.invalidateQueries({ queryKey: ["activeSurvey"] });
+    },
+    onError: (error: Error) => {
+      setMessage(`저장 실패: ${error.message}`);
+    },
+  });
+
+  // --- API: 설문 초기화/삭제 Mutation (DELETE /api/survey/active) ---
+  const resetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/survey/active`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 404) {
+        throw new Error(data.message || "설문 초기화에 실패했습니다.");
+      }
+      return data;
+    },
+    onSuccess: (data) => {
+      setSurveyTitle("2026년 해운대구 냉방기 클린UP 건강프로젝트 사업 만족도조사");
+      setSurveyIntro("안녕하세요?\n본 설문의 목적은 사업 만족도 조사를 통해 더 나은 서비스를 제공하고 의견을 반영하기 위함입니다. 바쁘시더라도 정성껏 응답해 주시기 바랍니다.");
+      setQuestions([]);
+      setSubmittedQuestions([]);
+      setMessage(data.message || "설문이 초기화되었습니다.");
+      queryClient.invalidateQueries({ queryKey: ["activeSurvey"] });
+    },
+    onError: (error: Error) => {
+      setMessage(`초기화 실패: ${error.message}`);
+    },
+  });
 
   // 등록(저장) 가능 여부 판별
   const canSubmit = useMemo(() => {
@@ -76,7 +169,7 @@ export default function AdminSurveyUI() {
     });
   }, [surveyTitle, questions]);
 
-  // --- 핸들러 (UI 조작용) ---
+  // --- UI 핸들러 ---
   const handleAddQuestion = () => {
     setMessage("");
     if (draftType === "multiple") {
@@ -141,41 +234,27 @@ export default function AdminSurveyUI() {
   };
 
   const handleResetAll = () => {
-    setIsResetting(true);
     setMessage("");
-    
-    // 가짜 딜레이
-    setTimeout(() => {
-      setSurveyTitle("2026년 해운대구 냉방기 클린UP 건강프로젝트 사업 만족도조사");
-      setSurveyIntro("안녕하세요?\n본 설문의 목적은 사업 만족도 조사를 통해 더 나은 서비스를 제공하고 의견을 반영하기 위함입니다. 바쁘시더라도 정성껏 응답해 주시기 바랍니다.");
-      setDraftType("multiple");
-      setQuestions([]);
-      setSubmittedQuestions([]);
-      setMessage("설문이 초기화되었습니다.");
-      setIsResetting(false);
-    }, 600);
+    if (window.confirm("현재 활성 설문을 삭제 및 초기화하시겠습니까?")) {
+      resetMutation.mutate();
+    }
   };
 
   const handleSubmitSurvey = () => {
     if (!canSubmit) return;
-    setIsSaving(true);
     setMessage("");
-
-    // 가짜 딜레이
-    setTimeout(() => {
-      // 복사본을 만들어 미리보기에 반영
-      const normalizedSubmitted = questions.map((q) =>
-        q.type === "multiple"
-          ? { ...q, options: [...q.options] as [string, string, string, string, string] }
-          : { ...q }
-      );
-      setSubmittedQuestions(normalizedSubmitted);
-      setMessage("설문이 성공적으로 저장되어 미리보기에 반영되었습니다.");
-      setIsSaving(false);
-    }, 800);
+    saveMutation.mutate();
   };
 
   const inputClass = "w-full border border-slate-300 rounded-lg p-3 text-sm outline-none focus:border-indigo-500 bg-white transition-colors";
+
+  if (isFetching) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="animate-spin text-indigo-600" size={36} />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 relative pb-12">
@@ -192,11 +271,11 @@ export default function AdminSurveyUI() {
         <button
           type="button"
           onClick={handleResetAll}
-          disabled={isResetting}
+          disabled={resetMutation.isPending}
           className="inline-flex items-center gap-2 justify-center rounded-xl border border-red-200 bg-white px-5 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 hover:border-red-300 disabled:opacity-50 transition-all shadow-sm"
         >
-          <RefreshCw size={16} className={isResetting ? "animate-spin" : ""} />
-          {isResetting ? "초기화 중..." : "초기화"}
+          <RefreshCw size={16} className={resetMutation.isPending ? "animate-spin" : ""} />
+          {resetMutation.isPending ? "초기화 중..." : "설문 완전 초기화 (삭제)"}
         </button>
       </div>
 
@@ -205,7 +284,7 @@ export default function AdminSurveyUI() {
         <div className={`rounded-xl border p-4 text-sm font-semibold flex items-center gap-2 shadow-sm ${
           message.includes("실패") ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"
         }`}>
-          <CheckCircle2 size={18} />
+          {message.includes("실패") ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
           {message}
         </div>
       )}
@@ -371,11 +450,11 @@ export default function AdminSurveyUI() {
               <button
                 type="button"
                 onClick={handleSubmitSurvey}
-                disabled={!canSubmit || isSaving}
+                disabled={!canSubmit || saveMutation.isPending}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300 transition-all shadow-md active:scale-95"
               >
-                {isSaving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
-                {isSaving ? "저장 중..." : "설문 등록 및 미리보기 갱신"}
+                {saveMutation.isPending ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
+                {saveMutation.isPending ? "저장 중..." : "설문 등록 및 미리보기 갱신"}
               </button>
             </div>
           </section>
@@ -388,7 +467,7 @@ export default function AdminSurveyUI() {
             <div className="mb-6">
               <h3 className="text-lg font-extrabold text-slate-800">설문 미리보기</h3>
               <p className="mt-1 text-sm text-slate-500">
-                저장된 설문이 모바일/웹 사용자에게 보여지는 화면입니다.
+                DB에 저장된 설문이 사용자에게 보여지는 화면입니다.
               </p>
             </div>
 
@@ -455,7 +534,7 @@ export default function AdminSurveyUI() {
                   본 서비스에 대한 의견을 확인합니다.
                 </div>
                 <div className="text-[14px] font-bold text-slate-700">
-                  2026년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;성명&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(서명)
+                  {new Date().getFullYear()}년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;성명&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(서명)
                 </div>
               </div>
 
@@ -465,7 +544,7 @@ export default function AdminSurveyUI() {
 
       </section>
 
-      {/* 스크롤바 스타일링 (Tailwind에 없는 커스텀 설정용 인라인) */}
+      {/* 스크롤바 스타일링 */}
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;

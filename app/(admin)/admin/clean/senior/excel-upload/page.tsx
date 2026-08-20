@@ -2,6 +2,28 @@
 
 import { useState, ChangeEvent, DragEvent, FormEvent, useMemo } from "react";
 import { UploadCloud, FileSpreadsheet, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+
+// 백엔드 응답 데이터 구조
+interface UploadResponse {
+  ok: boolean;
+  total?: number;
+  saved?: number;
+  errors?: string[];
+  message?: string;
+}
+
+// UI 렌더링용 결과 데이터 구조
+interface ResultData {
+  fileName: string;
+  programYear: number;
+  listType: string;
+  totalRows: number;
+  savedRows: number;
+  errorCount: number;
+  errors: string[];
+  message: string;
+}
 
 export default function SeniorExcelUploadUI() {
   // 폼 상태
@@ -11,10 +33,55 @@ export default function SeniorExcelUploadUI() {
   const [overwrite, setOverwrite] = useState<boolean>(true);
   const [dragActive, setDragActive] = useState(false);
 
-  // UI 테스트용 업로드 상태 ('idle' | 'loading' | 'success' | 'error')
-  const [uploadStatus, setUploadStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  // 결과 및 에러 상태
+  const [resultData, setResultData] = useState<ResultData | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   const acceptedText = useMemo(() => ".xls, .xlsx", []);
+
+  // --- React Query: 엑셀 업로드 Mutation ---
+  const uploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      // API 경로는 실제 백엔드 라우터 설정에 맞춰 수정해 주세요. (예: /api/senior-import)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/senior-import`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data: UploadResponse = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || "업로드 중 서버 오류가 발생했습니다.");
+      }
+
+      return data;
+    },
+    onMutate: () => {
+      setResultData(null);
+      setErrorMessage("");
+    },
+    onSuccess: (data) => {
+      setResultData({
+        fileName: file?.name || "알 수 없는 파일",
+        programYear: programYear,
+        listType: listType === "SELECTED" ? "선정자 (SELECTED)" : "대기자 (WAITLIST)",
+        totalRows: data.total || 0,
+        savedRows: data.saved || 0,
+        errorCount: data.errors?.length || 0,
+        errors: data.errors || [],
+        message: `${data.saved || 0}건의 경로당 데이터가 성공적으로 저장되었습니다.`,
+      });
+    },
+    onError: (error: Error) => {
+      setErrorMessage(error.message);
+    },
+  });
+
+  // 상태 파생 변수
+  const isUploading = uploadMutation.isPending;
+  const isSuccess = uploadMutation.isSuccess;
+  const isError = uploadMutation.isError;
+  const uploadStatus = isUploading ? "loading" : isError ? "error" : isSuccess ? "success" : "idle";
 
   // 파일 선택 핸들러
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -59,7 +126,7 @@ export default function SeniorExcelUploadUI() {
     setDragActive(false);
   };
 
-  // 가짜 업로드 실행 핸들러 (UI 테스트용)
+  // 실제 업로드 실행 핸들러
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!file) {
@@ -67,27 +134,13 @@ export default function SeniorExcelUploadUI() {
       return;
     }
     
-    // 로딩 상태 보여주기
-    setUploadStatus("loading");
-    
-    // 2초 뒤 성공 상태로 변경 (테스트용)
-    setTimeout(() => {
-      setUploadStatus("success");
-    }, 2000);
-  };
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("programYear", programYear.toString());
+    formData.append("listType", listType);
+    formData.append("overwrite", overwrite.toString());
 
-  // UI 표시를 위한 가짜 결과 데이터
-  const mockResult = {
-    savedRows: 85,
-    errorCount: 1,
-    fileName: file?.name || "senior_center_list.xlsx",
-    programYear: programYear,
-    listType: listType === "SELECTED" ? "선정자 (SELECTED)" : "대기자 (WAITLIST)",
-    totalRows: 86,
-    message: "85건의 경로당 데이터가 성공적으로 저장되었습니다.",
-    errors: [
-      "행 12: 경로당 번호 형식이 올바르지 않습니다."
-    ]
+    uploadMutation.mutate(formData);
   };
 
   // 공통 Input 클래스
@@ -97,7 +150,7 @@ export default function SeniorExcelUploadUI() {
     <div className="max-w-5xl mx-auto space-y-6 relative">
       
       {/* 업로드 중 오버레이 */}
-      {uploadStatus === "loading" && (
+      {isUploading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
             <Loader2 className="animate-spin text-indigo-600" size={48} />
@@ -112,16 +165,21 @@ export default function SeniorExcelUploadUI() {
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900">경로당 엑셀 업로드</h2>
           <p className="text-sm text-slate-500 mt-1">
-            백엔드 업로드 경로: <span className="font-semibold">/import/upload</span>
+            백엔드 업로드 경로: <span className="font-semibold">/api/senior-centers/upload</span>
           </p>
         </div>
         
-        {/* 테스트용 리셋 버튼 */}
+        {/* 상태 초기화 버튼 */}
         <button 
-          onClick={() => { setUploadStatus("idle"); setFile(null); }}
-          className="text-sm text-slate-500 hover:text-slate-800 underline"
+          onClick={() => { 
+            uploadMutation.reset(); 
+            setFile(null); 
+            setResultData(null);
+            setErrorMessage("");
+          }}
+          className="text-sm text-slate-500 hover:text-slate-800 underline transition-colors"
         >
-          상태 초기화 (UI 테스트용)
+          초기화 및 새 파일 업로드
         </button>
       </div>
 
@@ -207,11 +265,11 @@ export default function SeniorExcelUploadUI() {
 
         <button
           type="submit"
-          disabled={uploadStatus === "loading" || !file}
+          disabled={isUploading || !file}
           className="w-full bg-slate-900 text-white font-bold py-3 rounded-lg hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
         >
           <UploadCloud size={18} />
-          {uploadStatus === "loading" ? "업로드 처리 중..." : "엑셀 데이터 업로드"}
+          {isUploading ? "업로드 처리 중..." : "엑셀 데이터 업로드"}
         </button>
       </form>
 
@@ -242,7 +300,7 @@ export default function SeniorExcelUploadUI() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
           <p className="text-sm font-bold text-slate-500">정상 저장 행</p>
           <p className="mt-1 text-2xl font-extrabold text-slate-800">
-            {uploadStatus === "success" ? mockResult.savedRows.toLocaleString() : 0}
+            {uploadStatus === "success" ? (resultData?.savedRows?.toLocaleString() || 0) : 0}
             <span className="text-sm font-normal text-slate-400 ml-1">건</span>
           </p>
         </div>
@@ -250,7 +308,7 @@ export default function SeniorExcelUploadUI() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
           <p className="text-sm font-bold text-slate-500">에러 발생 행</p>
           <p className="mt-1 text-2xl font-extrabold text-red-500">
-            {uploadStatus === "success" ? mockResult.errorCount.toLocaleString() : 0}
+            {uploadStatus === "success" ? (resultData?.errorCount?.toLocaleString() || 0) : 0}
             <span className="text-sm font-normal text-slate-400 ml-1">건</span>
           </p>
         </div>
@@ -263,47 +321,47 @@ export default function SeniorExcelUploadUI() {
         {uploadStatus === "error" && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex items-start gap-3">
             <AlertCircle size={20} className="shrink-0 mt-0.5" />
-            <span className="font-medium">업로드 중 서버 오류가 발생했습니다.</span>
+            <span className="font-medium">{errorMessage || "업로드 중 서버 오류가 발생했습니다."}</span>
           </div>
         )}
 
-        {uploadStatus === "success" && (
+        {uploadStatus === "success" && resultData && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 rounded-xl p-4 border border-slate-100">
               <div>
                 <p className="text-xs text-slate-500 font-bold mb-1">파일명</p>
-                <p className="text-sm font-semibold text-slate-800 break-all">{mockResult.fileName}</p>
+                <p className="text-sm font-semibold text-slate-800 break-all">{resultData.fileName}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 font-bold mb-1">사업연도</p>
-                <p className="text-sm font-semibold text-slate-800">{mockResult.programYear}</p>
+                <p className="text-sm font-semibold text-slate-800">{resultData.programYear}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 font-bold mb-1">명단 구분</p>
-                <p className="text-sm font-semibold text-slate-800">{mockResult.listType}</p>
+                <p className="text-sm font-semibold text-slate-800">{resultData.listType}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 font-bold mb-1">전체 스캔 행</p>
-                <p className="text-sm font-semibold text-slate-800">{mockResult.totalRows}</p>
+                <p className="text-sm font-semibold text-slate-800">{resultData.totalRows}</p>
               </div>
             </div>
 
             <div>
               <h4 className="text-sm font-bold text-slate-800 mb-2">처리 결과 메시지</h4>
               <div className="bg-emerald-50 text-emerald-800 text-sm p-4 rounded-xl border border-emerald-100 font-medium">
-                {mockResult.message}
+                {resultData.message}
               </div>
             </div>
 
             {/* 에러 내역 */}
             <div>
               <h4 className="text-sm font-bold text-slate-800 mb-2">
-                에러 로그 목록 <span className="text-slate-500 font-normal">({mockResult.errors.length}건)</span>
+                에러 로그 목록 <span className="text-slate-500 font-normal">({resultData.errors.length}건)</span>
               </h4>
-              {mockResult.errors.length > 0 ? (
+              {resultData.errors.length > 0 ? (
                 <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <ul className="space-y-2 text-sm text-red-600">
-                    {mockResult.errors.map((error, index) => (
+                    {resultData.errors.map((error, index) => (
                       <li key={`error-${index}`} className="flex items-start gap-2 break-words">
                         <span className="text-red-400 font-bold shrink-0">·</span> {error}
                       </li>

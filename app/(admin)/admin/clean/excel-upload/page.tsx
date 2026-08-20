@@ -2,6 +2,20 @@
 
 import { useState, ChangeEvent, DragEvent, FormEvent, useMemo } from "react";
 import { UploadCloud, FileSpreadsheet, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+
+// 백엔드 응답 타입 정의
+interface UploadResponse {
+  ok: boolean;
+  message: string;
+  fileName?: string;
+  programYear?: number;
+  listType?: string;
+  totalRows?: number;
+  savedRows?: number;
+  errorCount?: number;
+  errors?: string[];
+}
 
 export default function AdminExcelUploadUI() {
   // 폼 상태
@@ -11,10 +25,44 @@ export default function AdminExcelUploadUI() {
   const [overwrite, setOverwrite] = useState<boolean>(true);
   const [dragActive, setDragActive] = useState(false);
 
-  // UI 테스트용 업로드 상태 ('idle' | 'loading' | 'success' | 'error')
+  // 업로드 상태 및 결과 데이터
   const [uploadStatus, setUploadStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [resultData, setResultData] = useState<UploadResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   const acceptedText = useMemo(() => ".xls, .xlsx", []);
+
+  // React Query Mutation 설정
+  const uploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      // API 경로: 백엔드 주소에 맞춰 수정이 필요할 수 있습니다 (예: process.env.NEXT_PUBLIC_API_URL + '/import/upload')
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/import/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || "업로드 중 서버 오류가 발생했습니다.");
+      }
+
+      return data as UploadResponse;
+    },
+    onMutate: () => {
+      setUploadStatus("loading");
+      setResultData(null);
+      setErrorMessage("");
+    },
+    onSuccess: (data) => {
+      setUploadStatus("success");
+      setResultData(data);
+    },
+    onError: (error: Error) => {
+      setUploadStatus("error");
+      setErrorMessage(error.message);
+    },
+  });
 
   // 파일 선택 핸들러
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -45,36 +93,21 @@ export default function AdminExcelUploadUI() {
     setDragActive(false);
   };
 
-  // 가짜 업로드 실행 핸들러 (UI 테스트용)
+  // 실제 업로드 실행 핸들러
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!file) {
       alert("업로드할 엑셀 파일을 선택해 주세요.");
       return;
     }
-    
-    // 로딩 상태 보여주기
-    setUploadStatus("loading");
-    
-    // 2초 뒤 성공 상태로 변경 (테스트용)
-    setTimeout(() => {
-      setUploadStatus("success");
-    }, 2000);
-  };
 
-  // UI 표시를 위한 가짜 결과 데이터
-  const mockResult = {
-    savedRows: 1250,
-    errorCount: 2,
-    fileName: file?.name || "test_upload_file.xlsx",
-    programYear: programYear,
-    listType: listType === "SELECTED" ? "선정자 (SELECTED)" : "대기자 (WAITLIST)",
-    totalRows: 1252,
-    message: "1,250건의 데이터가 성공적으로 저장되었습니다.",
-    errors: [
-      "행 45: 연락처 형식이 올바르지 않습니다.",
-      "행 102: 중복된 지원자 정보입니다."
-    ]
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("programYear", programYear.toString());
+    formData.append("listType", listType);
+    formData.append("overwrite", overwrite.toString());
+
+    uploadMutation.mutate(formData);
   };
 
   // 공통 Input 클래스
@@ -82,7 +115,6 @@ export default function AdminExcelUploadUI() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 relative">
-      
       {/* 업로드 중 오버레이 */}
       {uploadStatus === "loading" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
@@ -102,13 +134,18 @@ export default function AdminExcelUploadUI() {
             백엔드 업로드 경로: <span className="font-semibold">/import/upload</span>
           </p>
         </div>
-        
-        {/* 테스트용 리셋 버튼 */}
-        <button 
-          onClick={() => { setUploadStatus("idle"); setFile(null); }}
+
+        {/* 상태 초기화 버튼 */}
+        <button
+          onClick={() => {
+            setUploadStatus("idle");
+            setFile(null);
+            setResultData(null);
+            uploadMutation.reset();
+          }}
           className="text-sm text-slate-500 hover:text-slate-800 underline"
         >
-          상태 초기화 (UI 테스트용)
+          초기화 및 새 파일 업로드
         </button>
       </div>
 
@@ -229,7 +266,7 @@ export default function AdminExcelUploadUI() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
           <p className="text-sm font-bold text-slate-500">정상 저장 행</p>
           <p className="mt-1 text-2xl font-extrabold text-slate-800">
-            {uploadStatus === "success" ? mockResult.savedRows.toLocaleString() : 0}
+            {uploadStatus === "success" ? (resultData?.savedRows?.toLocaleString() || 0) : 0}
             <span className="text-sm font-normal text-slate-400 ml-1">건</span>
           </p>
         </div>
@@ -237,7 +274,7 @@ export default function AdminExcelUploadUI() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
           <p className="text-sm font-bold text-slate-500">에러 발생 행</p>
           <p className="mt-1 text-2xl font-extrabold text-red-500">
-            {uploadStatus === "success" ? mockResult.errorCount.toLocaleString() : 0}
+            {uploadStatus === "success" ? (resultData?.errorCount?.toLocaleString() || 0) : 0}
             <span className="text-sm font-normal text-slate-400 ml-1">건</span>
           </p>
         </div>
@@ -250,47 +287,49 @@ export default function AdminExcelUploadUI() {
         {uploadStatus === "error" && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex items-start gap-3">
             <AlertCircle size={20} className="shrink-0 mt-0.5" />
-            <span className="font-medium">업로드 중 서버 오류가 발생했습니다.</span>
+            <span className="font-medium">{errorMessage || "업로드 중 오류가 발생했습니다."}</span>
           </div>
         )}
 
-        {uploadStatus === "success" && (
+        {uploadStatus === "success" && resultData && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 rounded-xl p-4 border border-slate-100">
               <div>
                 <p className="text-xs text-slate-500 font-bold mb-1">파일명</p>
-                <p className="text-sm font-semibold text-slate-800 break-all">{mockResult.fileName}</p>
+                <p className="text-sm font-semibold text-slate-800 break-all">{resultData.fileName}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 font-bold mb-1">사업연도</p>
-                <p className="text-sm font-semibold text-slate-800">{mockResult.programYear}</p>
+                <p className="text-sm font-semibold text-slate-800">{resultData.programYear}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 font-bold mb-1">명단 구분</p>
-                <p className="text-sm font-semibold text-slate-800">{mockResult.listType}</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {resultData.listType === "SELECTED" ? "선정자 (SELECTED)" : "대기자 (WAITLIST)"}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 font-bold mb-1">전체 스캔 행</p>
-                <p className="text-sm font-semibold text-slate-800">{mockResult.totalRows}</p>
+                <p className="text-sm font-semibold text-slate-800">{resultData.totalRows}</p>
               </div>
             </div>
 
             <div>
               <h4 className="text-sm font-bold text-slate-800 mb-2">처리 결과 메시지</h4>
               <div className="bg-emerald-50 text-emerald-800 text-sm p-4 rounded-xl border border-emerald-100 font-medium">
-                {mockResult.message}
+                {resultData.message}
               </div>
             </div>
 
             {/* 에러 내역 */}
             <div>
               <h4 className="text-sm font-bold text-slate-800 mb-2">
-                에러 로그 목록 <span className="text-slate-500 font-normal">({mockResult.errors.length}건)</span>
+                에러 로그 목록 <span className="text-slate-500 font-normal">({resultData.errors?.length || 0}건)</span>
               </h4>
-              {mockResult.errors.length > 0 ? (
+              {(resultData.errors?.length ?? 0) > 0 ? (
                 <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <ul className="space-y-2 text-sm text-red-600">
-                    {mockResult.errors.map((error, index) => (
+                    {resultData.errors?.map((error, index) => (
                       <li key={`error-${index}`} className="flex items-start gap-2 break-words">
                         <span className="text-red-400 font-bold shrink-0">·</span> {error}
                       </li>
@@ -313,7 +352,6 @@ export default function AdminExcelUploadUI() {
           </div>
         )}
       </div>
-
     </div>
   );
 }

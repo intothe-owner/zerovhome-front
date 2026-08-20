@@ -8,7 +8,26 @@ import {
   useRef,
   useState,
 } from "react";
-import { Download, ChevronLeft, List, Loader2, Save, FileText, Camera } from "lucide-react";
+import { Download, ChevronLeft, List, Loader2, Save, FileText, Camera, AlertCircle } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+
+type LatestWorkReportItem = {
+    id: number;
+    householdId: number;
+    dongName?: string | null;
+    residentName?: string | null;
+    agencyName?: string | null;
+    companyName?: string | null;
+    companyPhone?: string | null;
+    jobName?: string | null;
+    workDate?: string | null;
+    workerName?: string | null;
+    address?: string | null;
+    memo?: string | null;
+    pdfPath?: string | null;
+};
 
 // --- 유틸 함수 ---
 function formatDateTime(value?: string | null) {
@@ -23,8 +42,7 @@ function formatDateTime(value?: string | null) {
 
 function maskRrn(rrn?: string | null) {
   if (!rrn) return "-";
-  if (rrn.length <= 6) return rrn;
-  return `${rrn.slice(0, 6)}-*******`;
+  return "[RRN Redacted]";
 }
 
 function labelListType(value?: string) {
@@ -44,41 +62,101 @@ const PHOTO_LABELS: { key: PhotoFieldKey; label: string }[] = [
   { key: "afterImage", label: "작업후" },
 ];
 
-export default function AdminDetailUI() {
-  // --- UI 테스트용 Mock 데이터 ---
-  const mockItem = {
-    id: 1024,
-    localNo: "2026-001",
-    listType: "SELECTED",
-    rank: 1,
-    totalScore: 85,
-    programYear: 2026,
-    categoryCode: "A-01",
-    dong: "반송1동",
-    benefitType: "기초생활수급자",
-    createdAt: "2026-08-18T10:30:00Z",
-    name: "김어르신",
-    rrn: "450101-1234567",
-    phone: "010-1234-5678",
-    proxyPhone: "010-9876-5432",
-    roadAddress: "부산광역시 해운대구 반송로 123",
-    detailAddress: "1층 101호",
+interface HouseholdDetail {
+  id: number;
+  programYear: number;
+  listType: string;
+  localNo: number;
+  categoryCode: number;
+  dong: string;
+  benefitType: string;
+  name: string;
+  rrn: string;
+  phone: string | null;
+  proxyPhone: string | null;
+  roadAddress: string;
+  detailAddress: string | null;
+  rank: number;
+  totalScore: number;
+  photos: {
+    addressImage: string | null;
+    beforeImage: string | null;
+    duringImage: string | null;
+    afterImage: string | null;
   };
+  createdAt: string;
+  updatedAt: string;
+}
 
-  const mockSurvey = {
-    title: "2026년 해운대구 냉방기 클린UP 건강프로젝트 사업 만족도조사",
-    intro: "안녕하세요?\n본 설문의 목적은 사업 만족도 조사를 통해 더 나은 서비스를 제공하고 의견을 반영하기 위함입니다.",
-    questions: [
-      { id: 1, type: "multiple", question: "냉방기 청소 서비스에 만족하십니까?", options: [{ optionNo: 1, optionText: "매우 만족" }, { optionNo: 2, optionText: "만족" }, { optionNo: 3, optionText: "보통" }, { optionNo: 4, optionText: "불만족" }, { optionNo: 5, optionText: "매우 불만족" }] },
-      { id: 2, type: "subjective", question: "기타 건의사항을 적어주세요." }
-    ]
-  };
+export default function AdminDetailUI() {
+  const params = useParams();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const householdId = params.id;
+
+  // --- React Query: 상세 정보 조회 ---
+  const { data: detailData, isLoading, isError } = useQuery<{ item: HouseholdDetail }>({
+    queryKey: ["household", householdId],
+    queryFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/households/${householdId}`);
+      if (!res.ok) {
+        throw new Error("대상자 정보를 불러오는데 실패했습니다.");
+      }
+      return res.json();
+    },
+    enabled: !!householdId,
+  });
+
+  const item = detailData?.item;
+
+  // --- React Query: 활성 설문 조회 ---
+  const { data: activeSurveyData } = useQuery({
+    queryKey: ["activeSurvey"],
+    queryFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/survey/active`);
+      if (!res.ok) {
+        if (res.status === 404) return null;
+        throw new Error("설문 정보를 불러오지 못했습니다.");
+      }
+      return res.json();
+    },
+  });
+
+  const activeSurvey = activeSurveyData?.item;
+  const parsedQuestions = activeSurvey 
+    ? (typeof activeSurvey.questions === "string" ? JSON.parse(activeSurvey.questions) : activeSurvey.questions)
+    : [];
+
+  // --- React Query: 기존 설문 응답 조회 ---
+  const { data: surveyResponseData } = useQuery({
+    queryKey: ["surveyResponse", householdId],
+    queryFn: async () => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/survey/response/household/${householdId}`);
+      if (!res.ok) {
+        if (res.status === 404) return null;
+        throw new Error("설문 응답을 불러오지 못했습니다.");
+      }
+      return res.json();
+    },
+    enabled: !!householdId,
+  });
 
   // --- 상태 관리 ---
   const [files, setFiles] = useState<LocalFileState>({ addressImage: null, beforeImage: null, duringImage: null, afterImage: null });
   const [previewUrls, setPreviewUrls] = useState<PreviewState>({ addressImage: null, beforeImage: null, duringImage: null, afterImage: null });
   const [message, setMessage] = useState<string>("");
-  const [isUploading, setIsUploading] = useState(false);
+  
+  // 서버 사진 URL 초기 프리뷰 동기화
+  useEffect(() => {
+    if (item?.photos) {
+      setPreviewUrls({
+        addressImage: item.photos.addressImage || null,
+        beforeImage: item.photos.beforeImage || null,
+        duringImage: item.photos.duringImage || null,
+        afterImage: item.photos.afterImage || null,
+      });
+    }
+  }, [item]);
 
   // PDF 관련 상태
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
@@ -94,7 +172,35 @@ export default function AdminDetailUI() {
   const [surveyMonth, setSurveyMonth] = useState("");
   const [surveyDay, setSurveyDay] = useState("");
   const [surveyName, setSurveyName] = useState("");
-  const [isSurveySaving, setIsSurveySaving] = useState(false);
+
+  // 기존 응답 데이터가 있으면 폼에 반영
+  useEffect(() => {
+    const resp = surveyResponseData?.item;
+    if (resp) {
+      if (resp.surveyMonth) setSurveyMonth(String(resp.surveyMonth));
+      if (resp.surveyDay) setSurveyDay(String(resp.surveyDay));
+      if (resp.respondentName) setSurveyName(resp.respondentName);
+      if (resp.signaturePath) setSignatureDataUrl(resp.signaturePath);
+
+      if (Array.isArray(resp.answers)) {
+        const newSelected: Record<number, number> = {};
+        const newSubjective: Record<number, string> = {};
+        resp.answers.forEach((ans: any, idx: number) => {
+          const qId = ans.questionId ?? idx + 1;
+          if (ans.selectedOptionNo != null) {
+            newSelected[qId] = ans.selectedOptionNo;
+          }
+          if (ans.subjectiveAnswer != null) {
+            newSubjective[qId] = ans.subjectiveAnswer;
+          }
+        });
+        setSelectedAnswers(newSelected);
+        setSubjectiveAnswers(newSubjective);
+      }
+    } else if (item?.name) {
+      setSurveyName(item.name);
+    }
+  }, [surveyResponseData, item]);
 
   // 서명 모달 상태
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
@@ -102,18 +208,59 @@ export default function AdminDetailUI() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
 
-  // --- 초기화 로직 ---
+  // 초기화 날짜 설정
   useEffect(() => {
     const today = new Date();
-    setSurveyMonth(`${today.getMonth() + 1}`);
-    setSurveyDay(`${today.getDate()}`);
+    if (!surveyMonth) setSurveyMonth(`${today.getMonth() + 1}`);
+    if (!surveyDay) setSurveyDay(`${today.getDate()}`);
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, "0");
     const dd = String(today.getDate()).padStart(2, "0");
     setReportWorkDate(`${yyyy}-${mm}-${dd}`);
   }, []);
 
-  // --- 사진 핸들러 ---
+  // --- 사진 업로드 Mutation ---
+  const photoUploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/households/${householdId}/photos`, {
+        method: "PUT",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "사진 업로드에 실패했습니다.");
+      return data;
+    },
+    onSuccess: () => {
+      setMessage("이미지가 성공적으로 저장되었습니다.");
+      queryClient.invalidateQueries({ queryKey: ["household", householdId] });
+      setFiles({ addressImage: null, beforeImage: null, duringImage: null, afterImage: null });
+    },
+    onError: (error: Error) => {
+      setMessage(error.message);
+    },
+  });
+
+  // --- 설문 제출 Mutation ---
+  const submitSurveyMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/survey/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "설문 저장에 실패했습니다.");
+      return data;
+    },
+    onSuccess: () => {
+      alert("설문이 성공적으로 저장되었습니다.");
+      queryClient.invalidateQueries({ queryKey: ["surveyResponse", householdId] });
+    },
+    onError: (error: Error) => {
+      alert(`설문 저장 실패: ${error.message}`);
+    },
+  });
+
   const handleFileChange = (field: PhotoFieldKey) => (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setMessage("");
@@ -127,14 +274,17 @@ export default function AdminDetailUI() {
 
   const handleSavePhotos = () => {
     if (!files.addressImage && !files.beforeImage && !files.duringImage && !files.afterImage) {
-      setMessage("업로드할 이미지를 먼저 선택해 주세요.");
+      setMessage("업로드할 새로운 이미지를 먼저 선택해 주세요.");
       return;
     }
-    setIsUploading(true);
-    setTimeout(() => {
-      setMessage("이미지가 성공적으로 저장되었습니다. (UI 테스트)");
-      setIsUploading(false);
-    }, 1000);
+
+    const formData = new FormData();
+    if (files.addressImage) formData.append("addressImage", files.addressImage);
+    if (files.beforeImage) formData.append("beforeImage", files.beforeImage);
+    if (files.duringImage) formData.append("duringImage", files.duringImage);
+    if (files.afterImage) formData.append("afterImage", files.afterImage);
+
+    photoUploadMutation.mutate(formData);
   };
 
   // --- 서명 캔버스 핸들러 ---
@@ -225,31 +375,107 @@ export default function AdminDetailUI() {
     setIsSignatureModalOpen(false);
   };
 
-  // --- 액션 핸들러 ---
-  const handleGeneratePdf = () => {
-    if (!reportJobName || !reportWorkDate || !reportWorkerName) {
+  const handleGeneratePdf = async () => {
+    if (!item?.id) return;
+    if (!reportJobName.trim() || !reportWorkDate.trim() || !reportWorkerName.trim()) {
       alert("필수 입력값을 모두 채워주세요.");
       return;
     }
-    setPdfLoading(true);
-    setTimeout(() => {
-      alert("PDF 다운로드가 완료되었습니다. (UI 테스트)");
-      setPdfLoading(false);
+    try {
+      setPdfLoading(true);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/work-reports/${item.id}/pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobName: reportJobName.trim(),
+          workDate: reportWorkDate,
+          workerName: reportWorkerName.trim(),
+          memo: reportMemo.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.message || "PDF 생성에 실패했습니다.");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${item.dong}${item.name}보고서.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
       setIsPdfModalOpen(false);
-    }, 1500);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "PDF 생성에 실패했습니다.");
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   const handleSubmitSurvey = () => {
+    if (!activeSurvey) {
+      alert("등록된 활성 설문이 없습니다.");
+      return;
+    }
     if (!surveyName.trim() || !signatureDataUrl) {
       alert("성명과 서명을 모두 입력해 주세요.");
       return;
     }
-    setIsSurveySaving(true);
-    setTimeout(() => {
-      alert("설문이 성공적으로 저장되었습니다. (UI 테스트)");
-      setIsSurveySaving(false);
-    }, 1000);
+
+    const formattedAnswers = parsedQuestions.map((q: any, idx: number) => {
+      const qId = q.id ?? idx + 1;
+      if (q.type === "multiple") {
+        return {
+          questionId: qId,
+          type: "multiple",
+          selectedOptionNo: selectedAnswers[qId] ?? null,
+        };
+      } else {
+        return {
+          questionId: qId,
+          type: "subjective",
+          subjectiveAnswer: subjectiveAnswers[qId] ?? "",
+        };
+      }
+    });
+
+    const payload = {
+      householdId: Number(householdId),
+      surveyId: activeSurvey.id,
+      surveyMonth,
+      surveyDay,
+      surveyName,
+      signatureDataUrl,
+      reportMemo,
+      answers: formattedAnswers,
+    };
+
+    submitSurveyMutation.mutate(payload);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="animate-spin text-indigo-600" size={36} />
+      </div>
+    );
+  }
+
+  if (isError || !item) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+        <AlertCircle className="mx-auto text-red-500 mb-2" size={36} />
+        <p className="text-lg font-bold text-slate-800">데이터를 불러오지 못했습니다.</p>
+        <button onClick={() => router.back()} className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold">
+          돌아가기
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 relative pb-12 pt-6 px-4 sm:px-6">
@@ -258,21 +484,21 @@ export default function AdminDetailUI() {
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm font-bold text-slate-500">연번</p>
-          <p className="mt-2 text-2xl font-extrabold text-slate-800">{mockItem.localNo}</p>
+          <p className="mt-2 text-2xl font-extrabold text-slate-800">{item.localNo}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm font-bold text-slate-500">명단 구분</p>
-          <p className="mt-2 text-2xl font-extrabold text-indigo-600 bg-indigo-50 inline-block px-3 py-1 rounded-lg mt-1">
-            {labelListType(mockItem.listType)}
+          <p className="mt-2 text-2xl font-extrabold text-indigo-600 bg-indigo-50 inline-block px-3 py-1 rounded-lg">
+            {labelListType(item.listType)}
           </p>
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm font-bold text-slate-500">순위</p>
-          <p className="mt-2 text-2xl font-extrabold text-slate-800">{mockItem.rank}</p>
+          <p className="mt-2 text-2xl font-extrabold text-slate-800">{item.rank}</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm font-bold text-slate-500">총점</p>
-          <p className="mt-2 text-2xl font-extrabold text-slate-800">{mockItem.totalScore}</p>
+          <p className="mt-2 text-2xl font-extrabold text-slate-800">{item.totalScore}</p>
         </div>
       </section>
 
@@ -291,22 +517,21 @@ export default function AdminDetailUI() {
               <FileText size={16} /> 작업보고서 (PDF)
             </button>
             <button
-              onClick={() => alert("뒤로가기 (UI 테스트)")}
+              onClick={() => router.back()}
               className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all"
             >
               <ChevronLeft size={16} /> 뒤로가기
             </button>
-            <button
-              onClick={() => alert("목록으로 (UI 테스트)")}
+            <Link
+              href="/admin/clean/cleanup"
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 transition-all"
             >
               <List size={16} /> 목록으로
-            </button>
+            </Link>
           </div>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* 기본 정보 */}
           <div className="rounded-2xl border border-slate-200 p-5 bg-slate-50/50">
             <h2 className="text-base font-extrabold mb-4 text-slate-800 flex items-center gap-2">
               <span className="w-1.5 h-4 bg-indigo-500 rounded-full"></span>기본 정보
@@ -314,24 +539,23 @@ export default function AdminDetailUI() {
             <div className="space-y-4 text-sm">
               <div className="grid grid-cols-3 gap-3 border-b border-slate-200 pb-3">
                 <span className="text-slate-500 font-bold">사업연도</span>
-                <span className="col-span-2 font-medium text-slate-900">{mockItem.programYear}년</span>
+                <span className="col-span-2 font-medium text-slate-900">{item.programYear}년</span>
               </div>
               <div className="grid grid-cols-3 gap-3 border-b border-slate-200 pb-3">
                 <span className="text-slate-500 font-bold">동 / 구분코드</span>
-                <span className="col-span-2 font-medium text-slate-900">{mockItem.dong} / {mockItem.categoryCode}</span>
+                <span className="col-span-2 font-medium text-slate-900">{item.dong} / {item.categoryCode}</span>
               </div>
               <div className="grid grid-cols-3 gap-3 border-b border-slate-200 pb-3">
                 <span className="text-slate-500 font-bold">수급형태</span>
-                <span className="col-span-2 font-medium text-slate-900">{mockItem.benefitType}</span>
+                <span className="col-span-2 font-medium text-slate-900">{item.benefitType}</span>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <span className="text-slate-500 font-bold">등록일시</span>
-                <span className="col-span-2 font-medium text-slate-900">{formatDateTime(mockItem.createdAt)}</span>
+                <span className="col-span-2 font-medium text-slate-900">{formatDateTime(item.createdAt)}</span>
               </div>
             </div>
           </div>
 
-          {/* 개인/연락처 정보 */}
           <div className="rounded-2xl border border-slate-200 p-5 bg-slate-50/50">
             <h2 className="text-base font-extrabold mb-4 text-slate-800 flex items-center gap-2">
               <span className="w-1.5 h-4 bg-indigo-500 rounded-full"></span>개인 및 연락처 정보
@@ -339,19 +563,19 @@ export default function AdminDetailUI() {
             <div className="space-y-4 text-sm">
               <div className="grid grid-cols-3 gap-3 border-b border-slate-200 pb-3">
                 <span className="text-slate-500 font-bold">성명 / 주민번호</span>
-                <span className="col-span-2 font-medium text-slate-900">{mockItem.name} / {maskRrn(mockItem.rrn)}</span>
+                <span className="col-span-2 font-medium text-slate-900">{item.name} / {maskRrn(item.rrn)}</span>
               </div>
               <div className="grid grid-cols-3 gap-3 border-b border-slate-200 pb-3">
                 <span className="text-slate-500 font-bold">휴대폰 / 대리인</span>
-                <span className="col-span-2 font-medium text-slate-900">{mockItem.phone} / {mockItem.proxyPhone}</span>
+                <span className="col-span-2 font-medium text-slate-900">{item.phone || "-"} / {item.proxyPhone || "-"}</span>
               </div>
               <div className="grid grid-cols-3 gap-3 border-b border-slate-200 pb-3">
                 <span className="text-slate-500 font-bold">도로명주소</span>
-                <span className="col-span-2 font-medium text-slate-900 leading-tight">{mockItem.roadAddress}</span>
+                <span className="col-span-2 font-medium text-slate-900 leading-tight">{item.roadAddress}</span>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <span className="text-slate-500 font-bold">상세주소</span>
-                <span className="col-span-2 font-medium text-slate-900">{mockItem.detailAddress}</span>
+                <span className="col-span-2 font-medium text-slate-900">{item.detailAddress || "-"}</span>
               </div>
             </div>
           </div>
@@ -363,17 +587,15 @@ export default function AdminDetailUI() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
           <div>
             <h2 className="text-xl font-extrabold text-slate-900">현장 사진 첨부</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              주소, 작업전, 작업중, 작업후 이미지를 각 1장씩 등록할 수 있습니다.
-            </p>
+            <p className="mt-1 text-sm text-slate-500">주소, 작업전, 작업중, 작업후 이미지를 각 1장씩 등록할 수 있습니다.</p>
           </div>
           <button
             type="button"
             onClick={handleSavePhotos}
-            disabled={isUploading}
+            disabled={photoUploadMutation.isPending}
             className="inline-flex items-center gap-2 justify-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50 shadow-sm transition-all"
           >
-            {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {photoUploadMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             이미지 일괄 저장
           </button>
         </div>
@@ -403,7 +625,6 @@ export default function AdminDetailUI() {
                       <span className="text-[11px] font-bold text-slate-400">사진 없음</span>
                     </div>
                   )}
-                  {/* 파일 업로드 오버레이 */}
                   <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white font-bold text-xs backdrop-blur-sm">
                     <input type="file" accept="image/*" className="hidden" onChange={handleFileChange(key)} />
                     {preview ? "사진 변경" : "사진 선택"}
@@ -411,9 +632,14 @@ export default function AdminDetailUI() {
                 </div>
 
                 {preview && (
-                  <button className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors">
-                    <Download size={14} /> 다운로드
-                  </button>
+                  <a
+                    href={preview}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
+                  >
+                    <Download size={14} /> 원본 보기
+                  </a>
                 )}
               </div>
             );
@@ -421,125 +647,141 @@ export default function AdminDetailUI() {
         </div>
       </section>
 
-      {/* 설문조사 */}
+      {/* 설문조사 응답 (DB 연동) */}
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="mb-6">
           <h2 className="text-xl font-extrabold text-slate-900">설문조사 응답</h2>
           <p className="mt-1 text-sm text-slate-500">등록된 설문 문항에 응답을 기록합니다.</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-300 bg-slate-50/50 p-4 md:p-8">
-          <div className="mx-auto max-w-[700px] border border-slate-200 bg-white shadow-sm px-6 py-8 md:px-10 md:py-10">
-            <div className="inline-block bg-indigo-50 border border-indigo-100 px-4 py-2 text-center text-lg md:text-xl font-extrabold leading-tight text-indigo-900 mb-6">
-              {mockSurvey.title}
-            </div>
-
-            <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 text-sm md:text-[15px] leading-7 text-slate-700 font-medium whitespace-pre-wrap mb-8">
-              {mockSurvey.intro}
-            </div>
-
-            <div className="space-y-8">
-              {mockSurvey.questions.map((question, index) => (
-                <div key={question.id}>
-                  <div className="text-[16px] font-bold leading-7 text-slate-900 mb-3">
-                    {index + 1}. {question.question}
-                  </div>
-                  
-                  {question.type === "multiple" ? (
-                    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {question.options?.map((option) => (
-                          <label key={option.optionNo} className="flex items-center gap-2.5 text-[15px] text-slate-700 cursor-pointer font-medium p-1 hover:bg-slate-100 rounded">
-                            <input
-                              type="radio"
-                              name={`mock-q-${question.id}`}
-                              className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                              checked={selectedAnswers[question.id] === option.optionNo}
-                              onChange={() => setSelectedAnswers((prev) => ({ ...prev, [question.id]: option.optionNo }))}
-                            />
-                            <span>({option.optionNo}) {option.optionText}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <textarea
-                      value={subjectiveAnswers[question.id] || ""}
-                      onChange={(e) => setSubjectiveAnswers((prev) => ({ ...prev, [question.id]: e.target.value }))}
-                      rows={4}
-                      className="w-full rounded-lg border border-slate-300 p-3 text-sm outline-none focus:border-indigo-500"
-                      placeholder="내용을 입력해 주세요."
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-10 pt-6 border-t border-slate-200">
-              <div className="bg-slate-100 px-4 py-2 text-[15px] font-bold text-center text-slate-800 rounded-lg mb-6">
-                본 서비스에 대한 의견을 확인합니다.
-              </div>
-              
-              <div className="flex flex-wrap items-center justify-center gap-3 text-[15px] font-bold text-slate-800">
-                <span>{new Date().getFullYear()}년</span>
-                <input
-                  type="text"
-                  maxLength={2}
-                  value={surveyMonth}
-                  onChange={(e) => setSurveyMonth(e.target.value.replace(/[^0-9]/g, ""))}
-                  className="w-12 border-b-2 border-slate-400 bg-transparent px-1 py-1 text-center outline-none focus:border-indigo-600"
-                  placeholder="월"
-                />
-                <span>월</span>
-                <input
-                  type="text"
-                  maxLength={2}
-                  value={surveyDay}
-                  onChange={(e) => setSurveyDay(e.target.value.replace(/[^0-9]/g, ""))}
-                  className="w-12 border-b-2 border-slate-400 bg-transparent px-1 py-1 text-center outline-none focus:border-indigo-600"
-                  placeholder="일"
-                />
-                <span>일</span>
-                <span className="ml-4">성명:</span>
-                <input
-                  type="text"
-                  value={surveyName}
-                  onChange={(e) => setSurveyName(e.target.value)}
-                  className="w-24 border-b-2 border-slate-400 bg-transparent px-2 py-1 text-center outline-none focus:border-indigo-600"
-                  placeholder="이름"
-                />
-                <button
-                  type="button"
-                  onClick={() => setIsSignatureModalOpen(true)}
-                  className="ml-2 inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  (서명 입력)
-                </button>
+        {!activeSurvey ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+            등록된 활성 설문조사가 없습니다. 설문 관리 페이지에서 설문을 먼저 등록해 주세요.
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-300 bg-slate-50/50 p-4 md:p-8">
+            <div className="mx-auto max-w-[700px] border border-slate-200 bg-white shadow-sm px-6 py-8 md:px-10 md:py-10">
+              <div className="inline-block bg-indigo-50 border border-indigo-100 px-4 py-2 text-center text-lg md:text-xl font-extrabold leading-tight text-indigo-900 mb-6">
+                {activeSurvey.title}
               </div>
 
-              {signatureDataUrl && (
-                <div className="mt-6 flex justify-center">
-                  <div className="relative inline-block border-2 border-dashed border-slate-300 p-2 rounded-xl bg-slate-50">
-                    <img src={signatureDataUrl} alt="서명" className="h-16 object-contain" />
-                    <button onClick={() => setSignatureDataUrl("")} className="absolute -top-2 -right-2 bg-slate-800 text-white w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center hover:bg-slate-900">&times;</button>
-                  </div>
+              {activeSurvey.intro && (
+                <div className="bg-slate-50 p-5 rounded-lg border border-slate-200 text-sm md:text-[15px] leading-7 text-slate-700 font-medium whitespace-pre-wrap mb-8">
+                  {activeSurvey.intro}
                 </div>
               )}
+
+              <div className="space-y-8">
+                {parsedQuestions.map((question: any, index: number) => {
+                  const qId = question.id ?? index + 1;
+                  return (
+                    <div key={qId}>
+                      <div className="text-[16px] font-bold leading-7 text-slate-900 mb-3">
+                        {index + 1}. {question.question}
+                      </div>
+                      
+                      {question.type === "multiple" ? (
+                        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {question.options?.map((optionText: string, optIdx: number) => {
+                              const optionNo = optIdx + 1;
+                              return (
+                                <label key={optionNo} className="flex items-center gap-2.5 text-[15px] text-slate-700 cursor-pointer font-medium p-1 hover:bg-slate-100 rounded">
+                                  <input
+                                    type="radio"
+                                    name={`survey-q-${qId}`}
+                                    className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                                    checked={selectedAnswers[qId] === optionNo}
+                                    onChange={() => setSelectedAnswers((prev) => ({ ...prev, [qId]: optionNo }))}
+                                  />
+                                  <span>({optionNo}) {optionText}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <textarea
+                          value={subjectiveAnswers[qId] || ""}
+                          onChange={(e) => setSubjectiveAnswers((prev) => ({ ...prev, [qId]: e.target.value }))}
+                          rows={4}
+                          className="w-full rounded-lg border border-slate-300 p-3 text-sm outline-none focus:border-indigo-500"
+                          placeholder="내용을 입력해 주세요."
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-10 pt-6 border-t border-slate-200">
+                <div className="bg-slate-100 px-4 py-2 text-[15px] font-bold text-center text-slate-800 rounded-lg mb-6">
+                  본 서비스에 대한 의견을 확인합니다.
+                </div>
+                
+                <div className="flex flex-wrap items-center justify-center gap-3 text-[15px] font-bold text-slate-800">
+                  <span>{new Date().getFullYear()}년</span>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={surveyMonth}
+                    onChange={(e) => setSurveyMonth(e.target.value.replace(/[^0-9]/g, ""))}
+                    className="w-12 border-b-2 border-slate-400 bg-transparent px-1 py-1 text-center outline-none focus:border-indigo-600"
+                    placeholder="월"
+                  />
+                  <span>월</span>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={surveyDay}
+                    onChange={(e) => setSurveyDay(e.target.value.replace(/[^0-9]/g, ""))}
+                    className="w-12 border-b-2 border-slate-400 bg-transparent px-1 py-1 text-center outline-none focus:border-indigo-600"
+                    placeholder="일"
+                  />
+                  <span>일</span>
+                  <span className="ml-4">성명:</span>
+                  <input
+                    type="text"
+                    value={surveyName}
+                    onChange={(e) => setSurveyName(e.target.value)}
+                    className="w-24 border-b-2 border-slate-400 bg-transparent px-2 py-1 text-center outline-none focus:border-indigo-600"
+                    placeholder="이름"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsSignatureModalOpen(true)}
+                    className="ml-2 inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    (서명 입력)
+                  </button>
+                </div>
+
+                {signatureDataUrl && (
+                  <div className="mt-6 flex justify-center">
+                    <div className="relative inline-block border-2 border-dashed border-slate-300 p-2 rounded-xl bg-slate-50">
+                      <img src={signatureDataUrl} alt="서명" className="h-16 object-contain" />
+                      <button onClick={() => setSignatureDataUrl("")} className="absolute -top-2 -right-2 bg-slate-800 text-white w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center hover:bg-slate-900">&times;</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="mt-6 text-right">
-          <button
-            type="button"
-            onClick={handleSubmitSurvey}
-            disabled={isSurveySaving}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-8 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md active:scale-95"
-          >
-            {isSurveySaving && <Loader2 size={16} className="animate-spin" />}
-            설문 저장하기
-          </button>
-        </div>
+        {activeSurvey && (
+          <div className="mt-6 text-right">
+            <button
+              type="button"
+              onClick={handleSubmitSurvey}
+              disabled={submitSurveyMutation.isPending}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-8 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md active:scale-95"
+            >
+              {submitSurveyMutation.isPending && <Loader2 size={16} className="animate-spin" />}
+              설문 저장하기
+            </button>
+          </div>
+        )}
       </section>
 
       {/* --- 모달: 서명 입력 --- */}
@@ -548,9 +790,7 @@ export default function AdminDetailUI() {
           <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
               <h3 className="text-lg font-extrabold text-slate-900">서명 입력</h3>
-              <button onClick={() => setIsSignatureModalOpen(false)} className="text-slate-400 hover:text-slate-700">
-                &times;
-              </button>
+              <button onClick={() => setIsSignatureModalOpen(false)} className="text-slate-400 hover:text-slate-700">&times;</button>
             </div>
             <div className="p-6">
               <p className="mb-4 text-sm font-bold text-slate-500">아래 영역에 마우스나 손가락으로 서명해 주세요.</p>
@@ -624,9 +864,6 @@ export default function AdminDetailUI() {
                   placeholder="보고서 하단에 출력될 메모를 입력하세요."
                   className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-indigo-500"
                 />
-              </div>
-              <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl text-xs font-bold text-indigo-800 leading-tight">
-                위 정보와 앞서 등록한 [현장 사진 4장] 및 [설문조사 결과]를 종합하여 하나의 PDF 문서로 다운로드합니다.
               </div>
             </div>
             <div className="border-t border-slate-100 bg-slate-50 px-6 py-4 flex justify-end gap-2">

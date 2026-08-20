@@ -8,65 +8,95 @@ import {
   Upload,
   Loader2,
   LucideFileText,
-  FileText
+  FileText,
+  AlertCircle
 } from "lucide-react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
 type TabType = "LIST" | "COMPLETE";
 
+interface SeniorCenterItem {
+  id: number;
+  seq: number;
+  name: string;
+  roadAddress: string;
+  managerName: string | null;
+  managerPhone: string | null;
+  isComplete: boolean;
+}
+
+interface SeniorListResponse {
+  ok: boolean;
+  data: SeniorCenterItem[];
+  total: number;
+}
+
 export default function SeniorCenterListTableUI() {
-  // --- UI 테스트용 상태 관리 ---
+  // --- 상태 관리 ---
   const [activeTab, setActiveTab] = useState<TabType>("LIST");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [sortField, setSortField] = useState("seq");
   const [sortOrder, setSortOrder] = useState("ASC");
   
-  const [isLoading, setIsLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState("노인장애인복지과");
   const [reportTarget, setReportTarget] = useState<{ id: number; name: string; category: "AIR_CONDITIONER" | "AIR_PURIFIER" } | null>(null);
 
-  // --- 가짜(Mock) 데이터 ---
-  const totalCount = activeTab === "LIST" ? 125 : 42;
+  // --- React Query: 경로당 목록 조회 ---
+  const { data, isLoading, isError, refetch } = useQuery<SeniorListResponse>({
+    queryKey: ["seniorCenters", activeTab, page, pageSize, appliedSearch, sortField, sortOrder],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+        sortField,
+        sortOrder,
+        isComplete: activeTab === "COMPLETE" ? "true" : "false",
+      });
+
+      if (appliedSearch) {
+        params.append("keyword", appliedSearch);
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/senior?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error("경로당 목록을 불러오는데 실패했습니다.");
+      }
+      return res.json();
+    },
+  });
+
+  const seniorCenters = data?.data || [];
+  const totalCount = data?.total || 0;
   const totalPages = Math.ceil(totalCount / pageSize);
 
-  const mockData = [
-    { id: 1, seq: "2026-001", name: "해운대 시니어 클럽", roadAddress: "부산광역시 해운대구 반송로 123", managerName: "김철수", managerPhone: "010-1234-5678" },
-    { id: 2, seq: "2026-002", name: "반송2동 경로당", roadAddress: "부산광역시 해운대구 반송순환로 45", managerName: "이영희", managerPhone: "010-9876-5432" },
-    { id: 3, seq: "2026-003", name: "재송푸르지오 경로당", roadAddress: "부산광역시 해운대구 재반로 67", managerName: "박민수", managerPhone: "010-5555-4444" },
-    { id: 4, seq: "2026-004", name: "센텀센시빌 경로당", roadAddress: "부산광역시 해운대구 해운대로 111", managerName: "최동훈", managerPhone: "010-1111-2222" },
-    { id: 5, seq: "2026-005", name: "우동 협성프라자 경로당", roadAddress: "부산광역시 해운대구 우동1로 22", managerName: "-", managerPhone: "-" },
-  ];
-
-  // --- 핸들러 (UI 테스트용 가짜 로직) ---
+  // --- 핸들러 ---
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setPage(1);
-    }, 500);
+    setAppliedSearch(searchInput);
+    setPage(1);
   };
 
   const handlePageChange = (newPage: number) => {
-    setIsLoading(true);
     setPage(newPage);
-    setTimeout(() => setIsLoading(false), 300);
   };
 
   const handleDownloadPdf = (id: number, name: string, category: "AIR_CONDITIONER" | "AIR_PURIFIER", organization?: string) => {
     const loadingKey = `${id}-${category}`;
     setDownloadingId(loadingKey);
     
-    // 다운로드 로딩 시뮬레이션 (1.5초 후 완료)
+    // PDF 다운로드 시뮬레이션 (실제 백엔드 PDF 엔드포인트가 있다면 교체 가능)
     setTimeout(() => {
       setDownloadingId(null);
       setIsModalOpen(false);
-      alert(`[${organization}] ${name} - ${category === "AIR_CONDITIONER" ? "에어컨" : "공기청정기"} 보고서 다운로드 완료 (UI 테스트)`);
+      alert(`[${organization}] ${name} - ${category === "AIR_CONDITIONER" ? "에어컨" : "공기청정기"} 보고서 다운로드 완료`);
     }, 1500);
   };
 
@@ -77,7 +107,9 @@ export default function SeniorCenterListTableUI() {
       <section className="grid grid-cols-1 lg:grid-cols-4 gap-4 mt-6">
         <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm text-gray-500 font-bold">전체 건수</p>
-          <p className="mt-2 text-2xl font-black text-indigo-600">{totalCount.toLocaleString()}</p>
+          <p className="mt-2 text-2xl font-black text-indigo-600">
+            {isLoading ? "-" : totalCount.toLocaleString()}
+          </p>
         </div>
         <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm text-gray-500 font-bold">현재 페이지</p>
@@ -89,8 +121,8 @@ export default function SeniorCenterListTableUI() {
         </div>
         <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm text-gray-500 font-bold">상태</p>
-          <p className="mt-2 text-2xl font-black text-emerald-600">
-            {isLoading ? "로딩중..." : "정상"}
+          <p className={`mt-2 text-2xl font-black ${isLoading ? "text-amber-500" : isError ? "text-red-500" : "text-emerald-600"}`}>
+            {isLoading ? "로딩중..." : isError ? "오류 발생" : "정상"}
           </p>
         </div>
       </section>
@@ -121,13 +153,13 @@ export default function SeniorCenterListTableUI() {
       <section className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">경로당 에어컨 & 공기청정기 목록</h2>
-          <button
-            onClick={() => alert("엑셀 업로드 페이지로 이동 (UI 테스트)")}
+          <Link
             className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all shadow-sm active:scale-95"
+            href="/admin/clean/senior/excel-upload"
           >
             <Upload size={16} className="text-indigo-600" />
             엑셀 명단 업로드
-          </button>
+          </Link>
         </div>
 
         <form onSubmit={handleSearch} className="flex flex-wrap items-end gap-3">
@@ -204,31 +236,45 @@ export default function SeniorCenterListTableUI() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {isLoading ? (
-                <tr><td colSpan={6} className="py-20 text-center text-gray-400">로딩 중...</td></tr>
-              ) : mockData.length === 0 ? (
-                <tr><td colSpan={6} className="py-20 text-center text-gray-400">데이터가 없습니다.</td></tr>
+                <tr>
+                  <td colSpan={6} className="py-20 text-center text-gray-400">
+                    <Loader2 className="animate-spin mx-auto mb-2 text-indigo-500" size={24} />
+                    데이터를 불러오는 중입니다...
+                  </td>
+                </tr>
+              ) : isError ? (
+                <tr>
+                  <td colSpan={6} className="py-20 text-center text-red-500 font-medium">
+                    <AlertCircle className="mx-auto mb-2" size={24} />
+                    데이터를 불러오는데 실패했습니다.
+                    <button onClick={() => refetch()} className="block mx-auto mt-2 text-indigo-600 hover:underline">다시 시도</button>
+                  </td>
+                </tr>
+              ) : seniorCenters.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-20 text-center text-gray-400 font-medium">
+                    조회된 데이터가 없습니다.
+                  </td>
+                </tr>
               ) : (
-                mockData.map((item) => (
+                seniorCenters.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
                     <td className="px-4 py-4 text-gray-400 font-mono text-center text-xs">{item.seq}</td>
 
-                    {/* 경로당명 (가짜 상세페이지 링크) */}
                     <td className="px-6 py-4">
-                      <a
-                        href="#"
-                        onClick={(e) => { e.preventDefault(); alert(`${item.name} 상세 페이지로 이동 (UI 테스트)`); }}
+                      <Link
+                        href={`/admin/clean/senior/${item.id}`}
                         className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors hover:underline decoration-indigo-200 underline-offset-4 cursor-pointer"
                       >
                         {item.name}
-                      </a>
+                      </Link>
                     </td>
 
                     <td className="px-6 py-4 text-gray-600 truncate max-w-[200px] font-medium">{item.roadAddress}</td>
-                    <td className="px-6 py-4 font-medium text-gray-700">{item.managerName}</td>
-                    <td className="px-6 py-4 text-gray-600 font-medium">{item.managerPhone}</td>
+                    <td className="px-6 py-4 font-medium text-gray-700">{item.managerName || "-"}</td>
+                    <td className="px-6 py-4 text-gray-600 font-medium">{item.managerPhone || "-"}</td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center gap-2">
-                        {/* 에어컨 버튼 */}
                         <button
                           onClick={() => {
                             setReportTarget({ id: item.id, name: item.name, category: "AIR_CONDITIONER" });
@@ -241,7 +287,6 @@ export default function SeniorCenterListTableUI() {
                           에어컨
                         </button>
 
-                        {/* 공청기 PDF 바로 다운로드 (이것도 모달을 띄우거나 바로 다운 시뮬레이션 가능) */}
                         <button
                           onClick={() => handleDownloadPdf(item.id, item.name, "AIR_PURIFIER", "노인장애인복지과")}
                           disabled={downloadingId === `${item.id}-AIR_PURIFIER`}
@@ -260,35 +305,37 @@ export default function SeniorCenterListTableUI() {
         </div>
 
         {/* 하단 페이징 */}
-        <div className="bg-gray-50/50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
-          <div className="text-sm font-medium text-gray-500">
-            전체 <span className="text-indigo-600 font-black">{totalCount.toLocaleString()}</span>건 | 페이지 <span className="text-gray-900 font-bold">{page}</span> / {totalPages || 1}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(Math.max(1, page - 1))}
-              disabled={page <= 1}
-              className="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 transition-all shadow-sm"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <div className="flex items-center gap-1.5 px-4 text-sm font-bold">
-              <span className="text-indigo-600">{page}</span>
-              <span className="text-gray-300">/</span>
-              <span className="text-gray-500">{totalPages || 1}</span>
+        {!isLoading && !isError && (
+          <div className="bg-gray-50/50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
+            <div className="text-sm font-medium text-gray-500">
+              전체 <span className="text-indigo-600 font-black">{totalCount.toLocaleString()}</span>건 | 페이지 <span className="text-gray-900 font-bold">{page}</span> / {totalPages || 1}
             </div>
-            <button
-              onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
-              disabled={page >= totalPages}
-              className="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 transition-all shadow-sm"
-            >
-              <ChevronRight size={20} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(Math.max(1, page - 1))}
+                disabled={page <= 1}
+                className="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 transition-all shadow-sm"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <div className="flex items-center gap-1.5 px-4 text-sm font-bold">
+                <span className="text-indigo-600">{page}</span>
+                <span className="text-gray-300">/</span>
+                <span className="text-gray-500">{totalPages || 1}</span>
+              </div>
+              <button
+                onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
+                disabled={page >= totalPages}
+                className="p-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 transition-all shadow-sm"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* ✅ 기관 선택 모달창 */}
+      {/* 기관 선택 모달창 */}
       {isModalOpen && reportTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl overflow-hidden">

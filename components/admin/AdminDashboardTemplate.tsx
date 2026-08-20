@@ -9,21 +9,47 @@ import {
   ChevronRight, 
   Upload, 
   Download,
-  Loader2
+  Loader2,
+  AlertCircle
 } from "lucide-react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
 type TabType = "LIST" | "COMPLETE";
 
+// 백엔드 데이터 타입 정의
+interface Household {
+  id: number;
+  localNo: number;
+  dong: string;
+  name: string;
+  phone: string;
+  proxyPhone: string;
+  roadAddress: string;
+  detailAddress: string;
+  isComplete: boolean;
+  isArchived: boolean;
+}
+
+interface PaginatedResponse {
+  items: Household[];
+  pagination: {
+    page: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export default function AdminCleanUpHouseholdListUI() {
-  // --- UI 테스트용 로컬 상태 ---
+  // --- UI 상태 ---
   const [activeTab, setActiveTab] = useState<TabType>("LIST");
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   
   // 검색/필터 폼 상태
   const [searchInput, setSearchInput] = useState("");
-  const [group, setGroup] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState(""); // 실제 쿼리에 반영될 검색어
+  const [group, setGroup] = useState(""); // UI 필터용 (현재 백엔드 미구현 파라미터 대비용)
   const [sortField, setSortField] = useState("localNo");
   const [sortOrder, setSortOrder] = useState("asc");
   
@@ -31,44 +57,67 @@ export default function AdminCleanUpHouseholdListUI() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  // --- 가짜(Mock) 데이터 ---
-  const totalCount = activeTab === "LIST" ? 342 : 128;
-  const totalPages = Math.ceil(totalCount / pageSize);
+  // --- React Query 데이터 패칭 ---
+  const { data, isLoading, isError, refetch } = useQuery<PaginatedResponse>({
+    queryKey: [
+      "households", 
+      activeTab, 
+      page, 
+      pageSize, 
+      appliedSearch, 
+      sortField, 
+      sortOrder, 
+      group
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+        sort: sortField,
+        order: sortOrder,
+        isComplete: activeTab === "COMPLETE" ? "true" : "false",
+      });
 
-  const mockData = [
-    { id: 1, no: "2026-001", dong: "반송1동", name: "김철수", phone: "010-1234-5678", proxyPhone: "010-9876-5432", roadAddress: "부산광역시 해운대구 반송로 123", detailAddress: "1층 101호" },
-    { id: 2, no: "2026-002", dong: "반송2동", name: "이영희", phone: "010-2345-6789", proxyPhone: "-", roadAddress: "부산광역시 해운대구 반송순환로 45", detailAddress: "2층" },
-    { id: 3, no: "2026-003", dong: "재송1동", name: "박민수", phone: "010-3456-7890", proxyPhone: "010-1111-2222", roadAddress: "부산광역시 해운대구 재반로 67", detailAddress: "102동 304호" },
-    { id: 4, no: "2026-004", dong: "우1동", name: "최동훈", phone: "-", proxyPhone: "010-4567-8901", roadAddress: "부산광역시 해운대구 우동1로 22", detailAddress: "지하 1층" },
-    { id: 5, no: "2026-005", dong: "좌1동", name: "정수진", phone: "010-5678-9012", proxyPhone: "-", roadAddress: "부산광역시 해운대구 좌동로 88", detailAddress: "상가 2층 201호" },
-  ];
+      if (appliedSearch) params.append("q", appliedSearch);
+      if (group) params.append("group", group);
 
-  // --- UI 핸들러 (가짜 동작) ---
+      const url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/households/list?${params.toString()}`;
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("데이터를 불러오는데 실패했습니다.");
+      }
+      return response.json();
+    },
+  });
+
+  // 응답 데이터 기반 변수 설정
+  const households = data?.items || [];
+  const totalCount = data?.pagination?.total || 0;
+  const totalPages = data?.pagination?.totalPages || 1;
+
+  // --- UI 핸들러 ---
   const handleTabChange = (tab: TabType) => {
-    setIsLoading(true);
     setActiveTab(tab);
-    setPage(1);
-    setTimeout(() => setIsLoading(false), 400); // 탭 전환 로딩 시뮬레이션
+    setPage(1); // 탭 전환 시 1페이지로 리셋
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setPage(1);
-    setTimeout(() => setIsLoading(false), 500); // 검색 로딩 시뮬레이션
+    setAppliedSearch(searchInput);
+    setPage(1); // 검색 시 1페이지로 리셋
   };
 
   const handlePageChange = (newPage: number) => {
-    setIsLoading(true);
     setPage(newPage);
-    setTimeout(() => setIsLoading(false), 300);
   };
 
   const handleBulkDownload = () => {
     setIsDownloading(true);
+    // 일괄 다운로드 API 호출 로직은 추후 추가 (현재 UI 시뮬레이션 유지)
     setTimeout(() => {
       setIsDownloading(false);
-      alert("ZIP 파일 다운로드가 완료되었습니다. (UI 테스트)");
+      alert("ZIP 파일 다운로드가 완료되었습니다. (임시 UI 처리)");
     }, 2000);
   };
 
@@ -117,7 +166,9 @@ export default function AdminCleanUpHouseholdListUI() {
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm font-bold text-slate-500">전체 건수</p>
-          <p className="mt-2 text-2xl font-extrabold text-slate-800">{totalCount.toLocaleString()}</p>
+          <p className="mt-2 text-2xl font-extrabold text-slate-800">
+            {isLoading ? "-" : totalCount.toLocaleString()}
+          </p>
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm font-bold text-slate-500">현재 페이지</p>
@@ -129,8 +180,8 @@ export default function AdminCleanUpHouseholdListUI() {
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <p className="text-sm font-bold text-slate-500">상태</p>
-          <p className={`mt-2 text-2xl font-extrabold ${isLoading ? "text-amber-500" : "text-emerald-600"}`}>
-            {isLoading ? "조회 중..." : "정상"}
+          <p className={`mt-2 text-2xl font-extrabold ${isLoading ? "text-amber-500" : isError ? "text-red-500" : "text-emerald-600"}`}>
+            {isLoading ? "조회 중..." : isError ? "오류 발생" : "정상"}
           </p>
         </div>
       </section>
@@ -160,13 +211,13 @@ export default function AdminCleanUpHouseholdListUI() {
                 </button>
               )}
               
-              {/* 엑셀 업로드 */}
-              <button
-                onClick={() => alert("엑셀 업로드 페이지로 이동 (UI 테스트)")}
+              {/* 엑셀 업로드 링크 연결 */}
+              <Link 
+                href="/admin/clean/excel-upload"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 transition-all active:scale-95"
               >
                 <Upload size={16} /> 엑셀 업로드
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -243,7 +294,6 @@ export default function AdminCleanUpHouseholdListUI() {
               </button>
             </div>
           </form>
-
         </div>
       </section>
 
@@ -270,30 +320,38 @@ export default function AdminCleanUpHouseholdListUI() {
                     데이터를 불러오는 중입니다...
                   </td>
                 </tr>
-              ) : mockData.length === 0 ? (
+              ) : isError ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-20 text-center text-red-500 font-medium">
+                    <AlertCircle className="mx-auto mb-2" size={24} />
+                    데이터를 불러오는데 실패했습니다.
+                    <button onClick={() => refetch()} className="block mx-auto mt-2 text-indigo-600 hover:underline">다시 시도</button>
+                  </td>
+                </tr>
+              ) : households.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-20 text-center text-slate-400 font-medium">
                     조회된 데이터가 없습니다.
                   </td>
                 </tr>
               ) : (
-                mockData.map((item) => (
+                households.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-5 py-4 text-center text-slate-400 font-mono text-xs">{item.no}</td>
+                    <td className="px-5 py-4 text-center text-slate-400 font-mono text-xs">{item.localNo}</td>
                     <td className="px-5 py-4 font-bold text-slate-700">{item.dong}</td>
                     <td className="px-5 py-4 font-extrabold">
-                      <a
-                        href="#"
-                        onClick={(e) => { e.preventDefault(); alert(`${item.name} 님의 상세 페이지로 이동 (UI 테스트)`); }}
+                      {/* 상세 페이지로 이동 링크 적용 */}
+                      <Link
+                        href={`/admin/clean/cleanup/${item.id}`}
                         className="text-slate-900 group-hover:text-indigo-600 hover:underline decoration-indigo-200 underline-offset-4 transition-colors cursor-pointer"
                       >
                         {item.name}
-                      </a>
+                      </Link>
                     </td>
-                    <td className="px-5 py-4 text-slate-600 font-medium">{item.phone}</td>
-                    <td className="px-5 py-4 text-slate-600 font-medium">{item.proxyPhone}</td>
+                    <td className="px-5 py-4 text-slate-600 font-medium">{item.phone || "-"}</td>
+                    <td className="px-5 py-4 text-slate-600 font-medium">{item.proxyPhone || "-"}</td>
                     <td className="px-5 py-4 text-slate-700 break-words max-w-[200px]">{item.roadAddress}</td>
-                    <td className="px-5 py-4 text-slate-500 break-words max-w-[150px]">{item.detailAddress}</td>
+                    <td className="px-5 py-4 text-slate-500 break-words max-w-[150px]">{item.detailAddress || "-"}</td>
                   </tr>
                 ))
               )}
@@ -302,35 +360,37 @@ export default function AdminCleanUpHouseholdListUI() {
         </div>
 
         {/* 하단 페이징 영역 */}
-        <div className="bg-slate-50/50 px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-t border-slate-200">
-          <div className="text-sm font-medium text-slate-500">
-            총 <span className="font-extrabold text-indigo-600">{totalCount.toLocaleString()}</span>건 
-            <span className="mx-2 text-slate-300">|</span> 
-            <span className="font-bold text-slate-800">{page}</span> / {totalPages} 페이지
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(Math.max(1, page - 1))}
-              disabled={page <= 1}
-              className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
-            >
-              <ChevronLeft size={20} className="text-slate-600" />
-            </button>
-            <div className="flex items-center gap-1.5 px-3 text-sm font-extrabold">
-              <span className="text-indigo-600">{page}</span>
-              <span className="text-slate-300">/</span>
-              <span className="text-slate-500">{totalPages}</span>
+        {!isLoading && !isError && (
+          <div className="bg-slate-50/50 px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-t border-slate-200">
+            <div className="text-sm font-medium text-slate-500">
+              총 <span className="font-extrabold text-indigo-600">{totalCount.toLocaleString()}</span>건 
+              <span className="mx-2 text-slate-300">|</span> 
+              <span className="font-bold text-slate-800">{page}</span> / {totalPages} 페이지
             </div>
-            <button
-              onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
-              disabled={page >= totalPages}
-              className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
-            >
-              <ChevronRight size={20} className="text-slate-600" />
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(Math.max(1, page - 1))}
+                disabled={page <= 1}
+                className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
+              >
+                <ChevronLeft size={20} className="text-slate-600" />
+              </button>
+              <div className="flex items-center gap-1.5 px-3 text-sm font-extrabold">
+                <span className="text-indigo-600">{page}</span>
+                <span className="text-slate-300">/</span>
+                <span className="text-slate-500">{totalPages}</span>
+              </div>
+              <button
+                onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
+                disabled={page >= totalPages}
+                className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm"
+              >
+                <ChevronRight size={20} className="text-slate-600" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
     </div>
