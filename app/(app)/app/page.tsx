@@ -16,7 +16,7 @@ const Home = () => {
     if (!token) {
       // 토큰이 없으면 로그인 페이지로 리다이렉트
       // 웹뷰에서 안드로이드 뒤로가기 버튼(백스택) 꼬임을 방지하기 위해 replace 사용
-      router.replace("/(app)/login");
+      router.replace("/app/login");
     } else {
       // 토큰이 있으면 인증 확인 상태 해제 후 화면 렌더링
       setIsCheckingAuth(false);
