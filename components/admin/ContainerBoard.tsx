@@ -4,8 +4,6 @@ import {
     LayoutTemplate, Trash2, Wand2, Plus,
     Bold, Italic, Underline, Link as LinkIcon, Box, AlignLeft, AlignCenter, AlignRight,
     Upload, Video, Music, ImageIcon, X, Merge, Split, Sparkles, ImagePlus, Code, GripVertical
-    
-    
 } from "lucide-react";
 import { ContainerNode, ElementNode, TableData, TableCell } from "@/types/types";
 
@@ -75,20 +73,53 @@ export default function ContainerBoard({
     }, [selectedInlineImg]);
 
     // 💡 인라인 이미지 클릭 핸들러
+    // 💡 인라인 이미지 클릭 핸들러 (z-index < 0 및 레이어 겹침 해결)
     const handleInlineImgClick = (e: React.MouseEvent, elId: string, cellKey?: string) => {
         const target = e.target as HTMLElement;
+        let imgNode: HTMLImageElement | null = null;
+
+        // 1. 직접 클릭된 대상이 이미지인 경우 (기존 정상 동작)
         if (target.tagName === 'IMG') {
-            const rect = target.getBoundingClientRect();
-            setSelectedInlineImg({
-                elId,
-                node: target as HTMLImageElement,
-                top: rect.top,
-                left: rect.left,
-                cellKey
-            });
+            imgNode = target as HTMLImageElement;
         } else {
-            setSelectedInlineImg(null);
+            // 2. z-index가 낮아 다른 레이어(div)에 덮여있을 경우 처리
+            // 클릭한 X, Y 좌표에 수직으로 겹쳐진 모든 DOM 요소를 가져옵니다.
+            const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY);
+            const foundImg = elementsAtPoint.find(el => el.tagName === 'IMG') as HTMLImageElement;
+            
+            if (foundImg) {
+                imgNode = foundImg;
+            } else {
+                // 3. 클릭한 div(래퍼) 하위에 이미지가 있는 경우 (Fallback)
+                // z-index 문제가 아니라 빈 영역을 클릭했을 때 자식 이미지를 툴바로 띄우고 싶을 때 작동합니다.
+                const childImg = target.querySelector?.('img');
+                if (childImg) {
+                    imgNode = childImg as HTMLImageElement;
+                }
+            }
         }
+
+        // 이미지를 찾은 경우 툴바 상태 업데이트
+        if (imgNode) {
+            // 💡 선택된 이미지가 현재 클릭한 엘리먼트 편집 영역 내부의 이미지인지 한 번 더 검증
+            const editorId = cellKey ? `editable-${elId}-${cellKey}` : `editable-${elId}`;
+            const editorDiv = document.getElementById(editorId);
+
+            if (editorDiv && editorDiv.contains(imgNode)) {
+                const rect = imgNode.getBoundingClientRect();
+                setSelectedInlineImg({
+                    elId,
+                    node: imgNode,
+                    top: rect.top,
+                    left: rect.left,
+                    cellKey
+                });
+                return; // 성공적으로 이미지를 찾았으므로 종료
+            }
+        }
+
+        // 이미지를 찾지 못했거나 검증에 실패하면 툴바를 숨깁니다.
+        setSelectedInlineImg(null);
     };
 
     // 💡 인라인 이미지 변경/삭제 후 HTML 내용을 저장하는 함수
@@ -421,264 +452,199 @@ export default function ContainerBoard({
                                                 </div>
                                             )}
 
-                                           
                                             {/* 2. IMAGE Element */}
-{el.type === "IMAGE" && (
-    <div className="w-[calc(100%-1rem)] relative group ml-4" onMouseDown={(e) => { e.stopPropagation(); setActiveElementId(el.id); }}>
+                                            {/* 2. IMAGE Element */}
+                                            {el.type === "IMAGE" && (
+                                                <div className="w-[calc(100%-1rem)] relative group ml-4" onMouseDown={(e) => { e.stopPropagation(); setActiveElementId(el.id); }}>
 
-        {/* 💡 상단 툴바: 크기 직접 입력(px, %) 및 비율 유지 체크박스 */}
-        {isActive && (
-            <div className="absolute -top-16 left-0 bg-white rounded-lg shadow-xl border border-slate-200 px-3 py-2 flex items-center gap-3 z-50 whitespace-nowrap element-toolbar">
+                                                    {/* 💡 상단 툴바: 크기 직접 입력(px, %) 및 비율 유지 체크박스 */}
+                                                    {isActive && (
+                                                        <div className="absolute -top-16 left-0 bg-white rounded-lg shadow-xl border border-slate-200 px-3 py-2 flex items-center gap-3 z-50 whitespace-nowrap element-toolbar">
 
-                {/* 💡 가로(W) 입력 */}
-                <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-bold text-slate-500">W</span>
-                    <input
-                        type="number"
-                        value={el.styles?.width === "auto" ? "" : (parseFloat(String(el.styles?.width || "")) || "")}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            const currentWUnit = String(el.styles?.width || "100%").includes('%') ? '%' : 'px';
-                            const currentHUnit = String(el.styles?.height || "auto").includes('%') ? '%' : 'px';
-                            const wNum = parseFloat(String(el.styles?.width || ""));
-                            const hNum = parseFloat(String(el.styles?.height || ""));
-                            const isLocked = el.styles?.keepAspectRatio !== false;
+                                                            {/* 가로 입력 */}
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="text-[10px] font-bold text-slate-500">W</span>
+                                                                <input
+                                                                    type="number"
+                                                                    value={parseFloat(String(el.styles?.width || "")) || ""}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        const wUnit = String(el.styles?.width || "100%").includes('%') ? '%' : 'px';
+                                                                        const hUnit = String(el.styles?.height || "auto").includes('%') ? '%' : 'px';
+                                                                        const wNum = parseFloat(String(el.styles?.width || ""));
+                                                                        const hNum = parseFloat(String(el.styles?.height || ""));
+                                                                        const isLocked = el.styles?.keepAspectRatio !== false;
 
-                            const newWidth = val ? val + currentWUnit : "auto";
-                            let newHeight = el.styles?.height || "auto";
+                                                                        updateElementStyle(container.id, column.id, el.id, "width", val ? val + wUnit : "auto");
 
-                            // 100%일 때는 강제로 height를 auto로
-                            if (newWidth === "100%") {
-                                newHeight = "auto";
-                            } else if (isLocked && val && !isNaN(wNum) && !isNaN(hNum) && currentWUnit === currentHUnit && el.styles?.height !== "auto") {
-                                const ratio = hNum / wNum;
-                                newHeight = String(Math.round(Number(val) * ratio)) + currentHUnit;
-                            }
+                                                                        // 비율 고정이고 양쪽 다 단위가 같을 때 자동 계산
+                                                                        if (isLocked && val && wNum && hNum && wUnit === hUnit) {
+                                                                            const ratio = hNum / wNum;
+                                                                            updateElementStyle(container.id, column.id, el.id, "height", String(Math.round(Number(val) * ratio)) + hUnit);
+                                                                        }
+                                                                    }}
+                                                                    className="w-14 text-center text-xs border border-slate-200 rounded py-0.5 outline-none"
+                                                                    placeholder="auto"
+                                                                />
+                                                                <select
+                                                                    value={String(el.styles?.width || "100%").includes('%') ? '%' : 'px'}
+                                                                    onChange={(e) => {
+                                                                        const wNum = parseFloat(String(el.styles?.width || ""));
+                                                                        updateElementStyle(container.id, column.id, el.id, "width", wNum ? wNum + e.target.value : "auto");
+                                                                    }}
+                                                                    className="text-xs border border-slate-200 rounded p-0.5 outline-none bg-slate-50 cursor-pointer"
+                                                                >
+                                                                    <option value="px">px</option>
+                                                                    <option value="%">%</option>
+                                                                </select>
+                                                            </div>
 
-                            setContainers(containers.map(c => c.id === container.id ? {
-                                ...c, columns: c.columns.map(col => col.id === column.id ? {
-                                    ...col, elements: col.elements.map(element => element.id === el.id ? {
-                                        ...element,
-                                        styles: {
-                                            // TS 에러를 막기 위한 필수 기본값 설정
-                                            fontFamily: "default", fontSize: 16, color: "#000000", textAlign: "left", layerAlign: "flex-start", linkUrl: "", keepAspectRatio: true,
-                                            ...(element.styles as any),
-                                            width: newWidth, height: newHeight
-                                        }
-                                    } : element)
-                                } : col)
-                            } : c));
-                        }}
-                        className="w-14 text-center text-xs border border-slate-200 rounded py-0.5 outline-none"
-                        placeholder="auto"
-                    />
-                    <select
-                        value={String(el.styles?.width || "100%").includes('%') ? '%' : 'px'}
-                        onChange={(e) => {
-                            const newUnit = e.target.value;
-                            const currentWidthStr = String(el.styles?.width || "auto");
-                            const wNum = currentWidthStr === "auto" ? 100 : parseFloat(currentWidthStr);
-                            const newWidth = wNum ? wNum + newUnit : "auto";
+                                                            <div className="w-px h-4 bg-slate-300" />
 
-                            let newHeight = el.styles?.height || "auto";
-                            if (newWidth === "100%") {
-                                newHeight = "auto";
-                            }
+                                                            {/* 💡 비율 유지 체크박스 (가로 100% 시 비활성화) */}
+                                                            <label className={`flex items-center gap-1 text-[10px] font-bold ${String(el.styles?.width || "100%") === "100%" ? "text-slate-400 opacity-50 cursor-not-allowed" : "text-slate-600 cursor-pointer hover:text-indigo-600"}`}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={el.styles?.keepAspectRatio !== false}
+                                                                    onChange={(e) => updateElementStyle(container.id, column.id, el.id, "keepAspectRatio", e.target.checked)}
+                                                                    className={`accent-indigo-500 ${String(el.styles?.width || "100%") === "100%" ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                                                    disabled={String(el.styles?.width || "100%") === "100%"}
+                                                                />
+                                                                비율 고정
+                                                            </label>
 
-                            setContainers(containers.map(c => c.id === container.id ? {
-                                ...c, columns: c.columns.map(col => col.id === column.id ? {
-                                    ...col, elements: col.elements.map(element => element.id === el.id ? {
-                                        ...element,
-                                        styles: {
-                                            fontFamily: "default", fontSize: 16, color: "#000000", textAlign: "left", layerAlign: "flex-start", linkUrl: "", keepAspectRatio: true,
-                                            ...(element.styles as any),
-                                            width: newWidth, height: newHeight
-                                        }
-                                    } : element)
-                                } : col)
-                            } : c));
-                        }}
-                        className="text-xs border border-slate-200 rounded p-0.5 outline-none bg-slate-50 cursor-pointer"
-                    >
-                        <option value="px">px</option>
-                        <option value="%">%</option>
-                    </select>
-                </div>
+                                                            <div className="w-px h-4 bg-slate-300" />
 
-                <div className="w-px h-4 bg-slate-300" />
+                                                            {/* 💡 세로 입력 (가로 100% 시 비활성화) */}
+                                                            <div className={`flex items-center gap-1 ${String(el.styles?.width || "100%") === "100%" ? 'opacity-50' : ''}`}>
+                                                                <span className="text-[10px] font-bold text-slate-500">H</span>
+                                                                <input
+                                                                    type="number"
+                                                                    value={parseFloat(String(el.styles?.height || "")) || ""}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        const wUnit = String(el.styles?.width || "100%").includes('%') ? '%' : 'px';
+                                                                        const hUnit = String(el.styles?.height || "auto").includes('%') ? '%' : 'px';
+                                                                        const wNum = parseFloat(String(el.styles?.width || ""));
+                                                                        const hNum = parseFloat(String(el.styles?.height || ""));
+                                                                        const isLocked = el.styles?.keepAspectRatio !== false;
 
-                {/* 💡 비율 유지 체크박스 (가로 100% 시 비활성화) */}
-                <label className={`flex items-center gap-1 text-[10px] font-bold ${String(el.styles?.width || "100%") === "100%" ? "text-slate-400 opacity-50 cursor-not-allowed" : "text-slate-600 cursor-pointer hover:text-indigo-600"}`}>
-                    <input
-                        type="checkbox"
-                        checked={el.styles?.keepAspectRatio !== false}
-                        onChange={(e) => updateElementStyle(container.id, column.id, el.id, "keepAspectRatio", e.target.checked)}
-                        className={`accent-indigo-500 ${String(el.styles?.width || "100%") === "100%" ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                        disabled={String(el.styles?.width || "100%") === "100%"}
-                    />
-                    비율 고정
-                </label>
+                                                                        updateElementStyle(container.id, column.id, el.id, "height", val ? val + hUnit : "auto");
 
-                <div className="w-px h-4 bg-slate-300" />
+                                                                        // 비율 고정이고 양쪽 다 단위가 같을 때 자동 계산
+                                                                        if (isLocked && val && wNum && hNum && wUnit === hUnit) {
+                                                                            const ratio = wNum / hNum;
+                                                                            updateElementStyle(container.id, column.id, el.id, "width", String(Math.round(Number(val) * ratio)) + wUnit);
+                                                                        }
+                                                                    }}
+                                                                    className={`w-14 text-center text-xs border border-slate-200 rounded py-0.5 outline-none ${String(el.styles?.width || "100%") === "100%" ? 'bg-slate-100 cursor-not-allowed text-slate-400' : ''}`}
+                                                                    placeholder="auto"
+                                                                    disabled={String(el.styles?.width || "100%") === "100%"}
+                                                                />
+                                                                <select
+                                                                    value={String(el.styles?.height || "auto").includes('%') ? '%' : 'px'}
+                                                                    onChange={(e) => {
+                                                                        const hNum = parseFloat(String(el.styles?.height || ""));
+                                                                        updateElementStyle(container.id, column.id, el.id, "height", hNum ? hNum + e.target.value : "auto");
+                                                                    }}
+                                                                    className={`text-xs border border-slate-200 rounded p-0.5 outline-none ${String(el.styles?.width || "100%") === "100%" ? 'bg-slate-100 cursor-not-allowed text-slate-400' : 'bg-slate-50 cursor-pointer'}`}
+                                                                    disabled={String(el.styles?.width || "100%") === "100%"}
+                                                                >
+                                                                    <option value="px">px</option>
+                                                                    <option value="%">%</option>
+                                                                </select>
+                                                            </div>
 
-                {/* 💡 세로(H) 입력 (가로 100% 시 비활성화) */}
-                <div className={`flex items-center gap-1 ${String(el.styles?.width || "100%") === "100%" ? 'opacity-50' : ''}`}>
-                    <span className="text-[10px] font-bold text-slate-500">H</span>
-                    <input
-                        type="number"
-                        value={el.styles?.height === "auto" ? "" : (parseFloat(String(el.styles?.height || "")) || "")}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            const currentWUnit = String(el.styles?.width || "100%").includes('%') ? '%' : 'px';
-                            const currentHUnit = String(el.styles?.height || "auto").includes('%') ? '%' : 'px';
-                            const wNum = parseFloat(String(el.styles?.width || ""));
-                            const hNum = parseFloat(String(el.styles?.height || ""));
-                            const isLocked = el.styles?.keepAspectRatio !== false;
+                                                            <div className="w-px h-4 bg-slate-300" />
+                                                            
+                                                            {/* 기타 액션 버튼 */}
+                                                            <button onClick={(e) => { e.preventDefault(); openAnimModal(el, 'element', container.id, column.id); }} className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600" title="애니메이션 효과">
+                                                                <Wand2 size={14} /> 애니
+                                                            </button>
+                                                            <button onClick={() => deleteElement(container.id, column.id, el.id)} className="text-slate-500 hover:text-red-500" title="삭제">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    )}
 
-                            const newHeight = val ? val + currentHUnit : "auto";
-                            let newWidth = el.styles?.width || "100%";
+                                                    {/* 크기 조절을 위한 Wrapper */}
+                                                    <div
+                                                        id={`element-${el.id}`}
+                                                        className={`relative inline-block max-w-full ${isActive ? 'outline outline-2 outline-[#00d0d0]' : 'hover:outline outline-2 outline-indigo-200'} rounded`}
+                                                        style={{
+                                                            width: el.styles?.width === "auto" ? "100%" : (el.styles?.width ? String(el.styles.width) : "100%"),
+                                                            height: el.styles?.height === "auto" ? "auto" : (el.styles?.height ? String(el.styles.height) : "auto"),
+                                                            maxWidth: "100%"
+                                                        }}
+                                                    >
+                                                        {/* 크기 조절 모서리 점 (드래그) */}
+                                                        {isActive && (
+                                                            <>
+                                                                <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'nw')} className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nwse-resize z-10" />
+                                                                <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'ne')} className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nesw-resize z-10" />
+                                                                <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'sw')} className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nesw-resize z-10" />
+                                                                <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'se')} className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nwse-resize z-10" />
+                                                            </>
+                                                        )}
 
-                            if (isLocked && val && !isNaN(wNum) && !isNaN(hNum) && currentWUnit === currentHUnit && el.styles?.width !== "auto" && el.styles?.width !== "100%") {
-                                const ratio = wNum / hNum;
-                                newWidth = String(Math.round(Number(val) * ratio)) + currentWUnit;
-                            }
+                                                        {el.content ? (
+                                                            <div className="relative border rounded overflow-hidden w-full h-full">
+                                                                <img
+                                                                    src={el.content}
+                                                                    alt="업로드/생성 이미지"
+                                                                    className={`w-full h-full min-h-[50px] bg-slate-100 ${el.styles?.keepAspectRatio === false ? 'object-fill' : 'object-cover'}`}
+                                                                />
 
-                            setContainers(containers.map(c => c.id === container.id ? {
-                                ...c, columns: c.columns.map(col => col.id === column.id ? {
-                                    ...col, elements: col.elements.map(element => element.id === el.id ? {
-                                        ...element,
-                                        styles: {
-                                            fontFamily: "default", fontSize: 16, color: "#000000", textAlign: "left", layerAlign: "flex-start", linkUrl: "", keepAspectRatio: true,
-                                            ...(element.styles as any),
-                                            width: newWidth, height: newHeight
-                                        }
-                                    } : element)
-                                } : col)
-                            } : c));
-                        }}
-                        className={`w-14 text-center text-xs border border-slate-200 rounded py-0.5 outline-none ${String(el.styles?.width || "100%") === "100%" ? 'bg-slate-100 cursor-not-allowed text-slate-400' : ''}`}
-                        placeholder="auto"
-                        disabled={String(el.styles?.width || "100%") === "100%"}
-                    />
-                    <select
-                        value={String(el.styles?.height || "auto").includes('%') ? '%' : 'px'}
-                        onChange={(e) => {
-                            const newUnit = e.target.value;
-                            const currentHeightStr = String(el.styles?.height || "auto");
-                            const hNum = currentHeightStr === "auto" ? null : parseFloat(currentHeightStr);
-                            const newHeight = hNum ? hNum + newUnit : "auto";
+                                                                {/* AI 기능 */}
+                                                                {el.content.includes("pollinations.ai") && (
+                                                                    <div className="absolute top-0 left-0 w-full h-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity gap-3">
+                                                                        <label className="flex items-center gap-1 bg-white text-slate-800 px-3 py-1.5 rounded text-xs font-bold cursor-pointer shadow hover:bg-slate-100">
+                                                                            <ImagePlus size={14} /> 직접 첨부하기
+                                                                            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                                                                if (e.target.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.target.files[0]);
+                                                                            }} />
+                                                                        </label>
+                                                                        {setAiModalOpen && (
+                                                                            <button onClick={(e) => { e.stopPropagation(); setAiModalOpen('IMAGE', el.id, ''); }} className="flex items-center gap-1 bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow hover:bg-purple-700">
+                                                                                <Sparkles size={14} /> AI로 다시 그리기
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
 
-                            setContainers(containers.map(c => c.id === container.id ? {
-                                ...c, columns: c.columns.map(col => col.id === column.id ? {
-                                    ...col, elements: col.elements.map(element => element.id === el.id ? {
-                                        ...element,
-                                        styles: {
-                                            fontFamily: "default", fontSize: 16, color: "#000000", textAlign: "left", layerAlign: "flex-start", linkUrl: "", keepAspectRatio: true,
-                                            ...(element.styles as any),
-                                            height: newHeight
-                                        }
-                                    } : element)
-                                } : col)
-                            } : c));
-                        }}
-                        className={`text-xs border border-slate-200 rounded p-0.5 outline-none ${String(el.styles?.width || "100%") === "100%" ? 'bg-slate-100 cursor-not-allowed text-slate-400' : 'bg-slate-50 cursor-pointer'}`}
-                        disabled={String(el.styles?.width || "100%") === "100%"}
-                    >
-                        <option value="px">px</option>
-                        <option value="%">%</option>
-                    </select>
-                </div>
+                                                                {/* 우측 상단 이미지 변경 도구 */}
+                                                                <div className="absolute top-2 right-2 flex items-center gap-2 z-20">
+                                                                    <label className="flex items-center gap-1 p-1.5 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 cursor-pointer transition-colors" title="이미지 변경">
+                                                                        <ImagePlus size={14} />
+                                                                        <span className="text-xs font-bold px-1 cursor-pointer">변경</span>
+                                                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                                                            if (e.target.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.target.files[0]);
+                                                                        }} />
+                                                                    </label>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.dataTransfer.files[0]); }} className="h-full min-h-[160px] bg-slate-50 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-300 rounded cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/20 transition w-full">
+                                                                <Upload size={28} className="mb-2 text-indigo-500" />
+                                                                <span className="text-xs font-bold text-slate-700">이미지를 드래그하거나 클릭하여 업로드</span>
+                                                                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(container.id, column.id, el.id, e.target.files[0])} />
+                                                            </label>
+                                                        )}
+                                                    </div>
 
-                <div className="w-px h-4 bg-slate-300" />
-
-                {/* 기타 액션 버튼 */}
-                <button onClick={(e) => { e.preventDefault(); openAnimModal(el, 'element', container.id, column.id); }} className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold transition-colors bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600" title="애니메이션 효과">
-                    <Wand2 size={14} /> 애니
-                </button>
-                <button onClick={() => deleteElement(container.id, column.id, el.id)} className="text-slate-500 hover:text-red-500" title="삭제">
-                    <Trash2 size={16} />
-                </button>
-            </div>
-        )}
-
-        {/* 크기 조절을 위한 Wrapper */}
-        <div
-            id={`element-${el.id}`}
-            className={`relative inline-block max-w-full ${isActive ? 'outline outline-2 outline-[#00d0d0]' : 'hover:outline outline-2 outline-indigo-200'} rounded`}
-            style={{
-                width: el.styles?.width === "auto" ? "100%" : (el.styles?.width ? String(el.styles.width) : "100%"),
-                height: el.styles?.height === "auto" ? "auto" : (el.styles?.height ? String(el.styles.height) : "auto"),
-                maxWidth: "100%"
-            }}
-        >
-            {/* 크기 조절 모서리 점 (드래그) */}
-            {isActive && (
-                <>
-                    <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'nw')} className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nwse-resize z-10" />
-                    <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'ne')} className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nesw-resize z-10" />
-                    <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'sw')} className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nesw-resize z-10" />
-                    <div onMouseDown={(e) => handleResizeStart(e, container.id, column.id, el, 'se')} className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-[#00d0d0] rounded-full cursor-nwse-resize z-10" />
-                </>
-            )}
-
-            {el.content ? (
-                <div className="relative border rounded overflow-hidden w-full h-full">
-                    <img
-                        src={el.content}
-                        alt="업로드/생성 이미지"
-                        className={`w-full h-full min-h-[50px] bg-slate-100 ${el.styles?.keepAspectRatio === false ? 'object-fill' : 'object-cover'}`}
-                    />
-
-                    {/* AI 기능 */}
-                    {el.content.includes("pollinations.ai") && (
-                        <div className="absolute top-0 left-0 w-full h-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity gap-3">
-                            <label className="flex items-center gap-1 bg-white text-slate-800 px-3 py-1.5 rounded text-xs font-bold cursor-pointer shadow hover:bg-slate-100">
-                                <ImagePlus size={14} /> 직접 첨부하기
-                                <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                                    if (e.target.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.target.files[0]);
-                                }} />
-                            </label>
-                            {setAiModalOpen && (
-                                <button onClick={(e) => { e.stopPropagation(); setAiModalOpen('IMAGE', el.id, ''); }} className="flex items-center gap-1 bg-purple-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow hover:bg-purple-700">
-                                    <Sparkles size={14} /> AI로 다시 그리기
-                                </button>
-                            )}
-                        </div>
-                    )}
-
-                    {/* 우측 상단 이미지 변경 도구 */}
-                    <div className="absolute top-2 right-2 flex items-center gap-2 z-20">
-                        <label className="flex items-center gap-1 p-1.5 bg-indigo-600 text-white rounded shadow hover:bg-indigo-700 cursor-pointer transition-colors" title="이미지 변경">
-                            <ImagePlus size={14} />
-                            <span className="text-xs font-bold px-1 cursor-pointer">변경</span>
-                            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                                if (e.target.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.target.files[0]);
-                            }} />
-                        </label>
-                    </div>
-                </div>
-            ) : (
-                <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.[0]) handleFileUpload(container.id, column.id, el.id, e.dataTransfer.files[0]); }} className="h-full min-h-[160px] bg-slate-50 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-300 rounded cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/20 transition w-full">
-                    <Upload size={28} className="mb-2 text-indigo-500" />
-                    <span className="text-xs font-bold text-slate-700">이미지를 드래그하거나 클릭하여 업로드</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(container.id, column.id, el.id, e.target.files[0])} />
-                </label>
-            )}
-        </div>
-
-        {/* 링크 입력 창 */}
-        <div className="mt-2 flex items-center gap-2 bg-slate-50 p-1.5 border border-slate-200 rounded">
-            <LinkIcon size={14} className="text-slate-400" />
-            <input
-                type="text"
-                placeholder="이미지 클릭 시 이동할 URL"
-                value={el.styles?.linkUrl || ""}
-                onChange={(e) => updateElementStyle(container.id, column.id, el.id, "linkUrl", e.target.value)}
-                className="w-full text-xs p-1 bg-white border border-slate-300 rounded outline-none focus:border-indigo-500"
-            />
-        </div>
-    </div>
-)}
+                                                    {/* 링크 입력 창 */}
+                                                    <div className="mt-2 flex items-center gap-2 bg-slate-50 p-1.5 border border-slate-200 rounded">
+                                                        <LinkIcon size={14} className="text-slate-400" />
+                                                        <input
+                                                            type="text"
+                                                            placeholder="이미지 클릭 시 이동할 URL"
+                                                            value={el.styles?.linkUrl || ""}
+                                                            onChange={(e) => updateElementStyle(container.id, column.id, el.id, "linkUrl", e.target.value)}
+                                                            className="w-full text-xs p-1 bg-white border border-slate-300 rounded outline-none focus:border-indigo-500"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* 3. VIDEO Element */}
                                             {el.type === "VIDEO" && (
@@ -1143,64 +1109,9 @@ export default function ContainerBoard({
                                                     )}
                                                 </div>
                                             )}
-                                            {/* 10. MAP Element (지도) */}
-{el.type === "MAP" && (
-    <div className="w-full relative ml-4" onMouseDown={(e) => { e.stopPropagation(); setActiveElementId(el.id); }}>
-        {isActive && (
-            <div className="absolute -top-16 left-0 bg-white rounded-lg shadow-xl border border-slate-200 px-3 py-2 flex items-center gap-2 z-50 whitespace-nowrap element-toolbar">
-                <span className="text-[10px] font-bold text-slate-500">주소입력</span>
-                <input 
-                    type="text" 
-                    value={el.content} // 💡 content에 주소를 저장합니다.[cite: 1]
-                    onChange={(e) => updateElementHtmlContent(el.id, e.target.value)} 
-                    className="w-64 text-xs border border-slate-200 rounded px-2 py-1 outline-none focus:border-indigo-500"
-                    placeholder="예: 부산광역시 해운대구 신반송로 151"
-                />
-                <div className="w-px h-4 bg-slate-300" />
-                <span className="text-[10px] font-bold text-slate-500">지도 높이</span>
-                <input 
-                    type="text" 
-                    value={el.styles?.height || "400px"} 
-                    onChange={(e) => updateElementStyle(container.id, column.id, el.id, "height", e.target.value)} 
-                    className="w-16 text-xs text-center border border-slate-200 rounded py-1 outline-none"
-                    placeholder="400px"
-                />
-                <div className="w-px h-4 bg-slate-300" />
-                <button onClick={() => deleteElement(container.id, column.id, el.id)} className="text-slate-500 hover:text-red-500" title="삭제">
-                    <Trash2 size={16} />
-                </button>
-            </div>
-        )}
-        
-        {/* 관리자 뷰 플레이스홀더 (타이핑 시 불필요한 API 호출 방지) */}
-        <div 
-            className={`w-full bg-slate-100 flex flex-col items-center justify-center rounded overflow-hidden relative transition-all ${isActive ? 'outline outline-2 outline-[#00d0d0]' : 'hover:outline outline-2 outline-indigo-200'}`}
-            style={{ height: el.styles?.height || "400px" }}
-        >
-            <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="32" 
-                height="32" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className="text-indigo-500 mb-2"
-            >
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-            </svg>
-            <p className="font-bold text-slate-700">{el.content || "주소를 입력해주세요"}</p>
-            <p className="text-xs text-slate-500 mt-1">실제 사용자 화면에서는 카카오 지도가 출력됩니다.</p>
-        </div>
-    </div>
-)}
                                         </div>
                                     );
                                 })}
-                                
 
                                 <button
                                     onClick={() => setElementModalOpen({ containerId: container.id, columnId: column.id })}
