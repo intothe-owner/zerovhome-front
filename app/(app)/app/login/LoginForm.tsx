@@ -32,8 +32,8 @@ export default function LoginForm({ settings }: LoginFormProps) {
     mutationFn: async () => {
       // 💡 통신 시작 전, 안드로이드에서 미리 세팅된 FCM 토큰과 기기 ID를 빼옵니다.
       const win = window as any;
-      const fcmToken = win.AndroidBridge?.getFcmToken ? win.AndroidBridge.getFcmToken() : null;
-      const deviceId = win.AndroidBridge?.getDeviceId ? win.AndroidBridge.getDeviceId() : null;
+      const fcmToken = win.Android?.getFcmToken ? win.Android.getFcmToken() : null;
+const deviceId = win.Android?.getDeviceId ? win.Android.getDeviceId() : null;
 
       // ID, PW와 함께 안드로이드 기기 정보를 하나로 묶습니다.
       const payload = {
