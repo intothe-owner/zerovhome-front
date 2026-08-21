@@ -30,60 +30,38 @@ export default function LoginForm({ settings }: LoginFormProps) {
 
   const loginMutation = useMutation({
     mutationFn: async () => {
-      // Auth 로그인 API 호출[cite: 7, 9]
+      // 💡 통신 시작 전, 안드로이드에서 미리 세팅된 FCM 토큰과 기기 ID를 빼옵니다.
+      const win = window as any;
+      const fcmToken = win.AndroidBridge?.getFcmToken ? win.AndroidBridge.getFcmToken() : null;
+      const deviceId = win.AndroidBridge?.getDeviceId ? win.AndroidBridge.getDeviceId() : null;
+
+      // ID, PW와 함께 안드로이드 기기 정보를 하나로 묶습니다.
+      const payload = {
+        ...formData,
+        deviceToken: fcmToken,
+        deviceId: deviceId
+      };
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload), // 한 번에 전송!
       });
+      
       const data = await res.json();
       if (!data.success) {
         throw new Error(data.message || "로그인에 실패했습니다.");
       }
       return data;
     },
-    onSuccess: async (data) => {
+    onSuccess: (data) => {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       
       setSuccessMessage(`${data.user.name}님 환영합니다!`);
 
-      // 💡 [안드로이드 브릿지 통신 및 FCM 토큰 저장]
-      const win = window as any;
-      if (win.AndroidBridge) {
-        try {
-          // 1. 안드로이드 네이티브에서 FCM 토큰과 기기 ID 획득
-          const fcmToken = win.AndroidBridge.getFcmToken ? win.AndroidBridge.getFcmToken() : null;
-          const deviceId = win.AndroidBridge.getDeviceId ? win.AndroidBridge.getDeviceId() : "unknown";
-
-          // 2. 토큰이 존재하면 백엔드 DB(MemberDevice 테이블)에 저장 API 호출[cite: 2, 9]
-          if (fcmToken) {
-            await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/token`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                memberId: data.user.id,
-                deviceToken: fcmToken,
-                deviceType: "ANDROID",
-                deviceId: deviceId
-              }),
-            });
-          }
-
-          // 3. 앱에 로그인 성공 이벤트 전달 (선택사항)
-          if (win.AndroidBridge.postMessage) {
-            win.AndroidBridge.postMessage(JSON.stringify({
-              type: "LOGIN_SUCCESS",
-              memberId: data.user.id
-            }));
-          }
-        } catch (error) {
-          console.error("푸시 토큰 연동 중 오류 발생:", error);
-        }
-      }
-
       setTimeout(() => {
-        router.replace("/");
+        window.location.href = "/";
       }, 1000);
     },
     onError: (error: any) => {
