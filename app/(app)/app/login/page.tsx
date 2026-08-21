@@ -80,7 +80,7 @@ export default function AppLoginPage() {
               아직 계정이 없으신가요?
             </p>
             {/* 하이브리드 앱 내 라우팅 경로에 맞게 링크 수정 */}
-            <Link href="/(app)/signup" className="mt-2 inline-flex items-center gap-1 font-bold text-[14px] text-indigo-600 dark:text-indigo-400">
+            <Link href="/app/signup" className="mt-2 inline-flex items-center gap-1 font-bold text-[14px] text-indigo-600 dark:text-indigo-400">
               회원가입 하러 가기 <ArrowRight size={16} />
             </Link>
           </div>

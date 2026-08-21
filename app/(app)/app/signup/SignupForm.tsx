@@ -83,7 +83,7 @@ export default function SignupForm({ settings }: SignupFormProps) {
       }
 
       setTimeout(() => {
-        router.replace("/(app)/login"); 
+        router.replace("/app/login"); 
       }, 1500);
     },
     onError: (error: any) => {
