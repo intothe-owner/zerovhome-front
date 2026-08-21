@@ -113,7 +113,8 @@ export default function SignupForm({ settings }: SignupFormProps) {
 
     const submitData = new FormData();
     submitData.append("memberType", memberType);
-    
+    // ⭐ 앱 전용 회원가입 폼이므로, 앱 가입자임을 명시하는 플래그 추가
+    submitData.append("isApp", "true");
     const finalLoginId = settings?.useEmailAsLoginId ? formData.email : formData.loginId;
     submitData.append("loginId", finalLoginId);
     
