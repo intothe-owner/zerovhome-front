@@ -1,10 +1,39 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 const Home = () => {
+  const router = useRouter();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    // 💡 컴포넌트 마운트 시 로컬 스토리지에서 토큰 확인
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      // 토큰이 없으면 로그인 페이지로 리다이렉트
+      // 웹뷰에서 안드로이드 뒤로가기 버튼(백스택) 꼬임을 방지하기 위해 replace 사용
+      router.replace("/(app)/login");
+    } else {
+      // 토큰이 있으면 인증 확인 상태 해제 후 화면 렌더링
+      setIsCheckingAuth(false);
+    }
+  }, [router]);
+
+  // 인증 확인 중일 때는 깜빡임(Flash) 방지를 위해 로딩 화면 표시
+  if (isCheckingAuth) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-gray-50">
+        <Loader2 className="animate-spin text-blue-600" size={32} />
+      </div>
+    );
+  }
+
   return (
-    <div className="-mt-16 min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center px-5">
+    <div className="-mt-16 min-h-[100dvh] bg-gray-50 text-gray-900 flex flex-col items-center justify-center px-5">
       {/* 헤더 타이틀 */}
       <div className="mb-10 text-center">
         <h1 className="text-2xl font-black text-gray-900 tracking-tight">
@@ -36,7 +65,6 @@ const Home = () => {
             냉방기 및 공기청정기 클린UP
           </span>
         </Link>
-
       </div>
     </div>
   );
