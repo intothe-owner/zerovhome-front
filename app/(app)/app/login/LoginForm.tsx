@@ -34,8 +34,7 @@ export default function LoginForm({ settings }: LoginFormProps) {
       const win = window as any;
       const fcmToken = win.Android?.getFcmToken ? win.Android.getFcmToken() : null;
       const deviceId = win.Android?.getDeviceId ? win.Android.getDeviceId() : null;
-      alert(fcmToken);
-      alert(deviceId);
+   
 
       // ID, PW와 함께 안드로이드 기기 정보를 하나로 묶습니다.
       const payload = {
