@@ -81,7 +81,7 @@ const MobileRegisterPage = () => {
                         longitude: lng,
                     }));
 
-                    console.log("좌표 변환 성공:", lat, lng);
+                    
                 } else {
                     console.error("좌표 변환에 실패했습니다. (검색 결과 없음)");
                     alert("해당 주소의 좌표를 찾을 수 없습니다.");
@@ -144,7 +144,7 @@ const MobileRegisterPage = () => {
                 onLoad={() => {
                     if (window.kakao && window.kakao.maps) {
                         window.kakao.maps.load(() => {
-                            console.log("카카오맵 SDK 로드 완료");
+                            
                             setIsMapLoaded(true);
                         });
                     }

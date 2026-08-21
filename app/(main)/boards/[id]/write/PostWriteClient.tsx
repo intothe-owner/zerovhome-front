@@ -26,8 +26,7 @@ export default function PostWriteClient({ boardId }: { boardId: string }) {
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
-    alert(1);
-    console.log(userStr);
+    
     let currentLevel = 1;
     
     if (userStr) {

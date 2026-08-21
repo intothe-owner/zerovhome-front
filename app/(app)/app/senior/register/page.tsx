@@ -165,7 +165,7 @@ const MobileSeniorRegisterPage = () => {
                 onLoad={() => {
                     if (window.kakao && window.kakao.maps) {
                         window.kakao.maps.load(() => {
-                            console.log("카카오맵 SDK 로드 완료");
+                            
                             setIsMapLoaded(true);
                         });
                     }

@@ -19,7 +19,7 @@ const messaging = firebase.messaging();
 
 // 백그라운드 메시지 수신 시 시스템 알림 띄우기
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] 백그라운드 메시지 수신:', payload);
+  
   
   const notificationTitle = payload.notification.title;
   const notificationOptions = {

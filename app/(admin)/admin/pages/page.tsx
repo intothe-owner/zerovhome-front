@@ -399,7 +399,7 @@ export default function VisualPageBuilder() {
         await loadPageData(selectedMenuId);
       } else alert("저장 실패: " + json.message);
     } catch (error) {
-      console.log(error);
+      
       alert("서버와 통신 중 오류가 발생했습니다.");
     } finally {
       // 💡 [추가] 저장이 끝났으므로(성공/실패 무관) 상태 해제

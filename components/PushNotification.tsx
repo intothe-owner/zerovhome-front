@@ -14,7 +14,7 @@ export default function PushNotification() {
       if (!messaging) return; // 브라우저가 지원하지 않으면 멈춤
 
       const unsubscribe = onMessage(messaging, (payload) => {
-        console.log("포그라운드 푸시 수신:", payload);
+        
         if (payload.notification) {
           setNotification({
             title: payload.notification.title || "새로운 알림",
