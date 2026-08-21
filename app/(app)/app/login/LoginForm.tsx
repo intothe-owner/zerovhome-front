@@ -61,7 +61,7 @@ export default function LoginForm({ settings }: LoginFormProps) {
       setSuccessMessage(`${data.user.name}님 환영합니다!`);
 
       setTimeout(() => {
-        window.location.href = "/";
+        window.location.href = "/app";
       }, 1000);
     },
     onError: (error: any) => {
