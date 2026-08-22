@@ -168,13 +168,13 @@ export default function SupportFundManager() {
           >
             <DownloadCloud size={14}/> 기업마당
           </button>
-          <button 
+          {/* <button 
             onClick={handleScrapeKStartup}
             disabled={isScraping}
             className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 text-xs hover:bg-blue-700 transition"
           >
             <DownloadCloud size={14}/> K-Startup
-          </button>
+          </button> */}
           <button 
             onClick={handleScrapeSbiz24}
             disabled={isScraping}

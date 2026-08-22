@@ -8,10 +8,10 @@ import {
   Settings, Users, UserCheck, Menu as MenuIcon, 
   FileText, MessageSquare, LogOut, UserCircle, Megaphone,
   BarChart2, Briefcase, ChevronDown, ChevronRight,
-  ClipboardList, Sparkles, Home, UserPlus // 💡 새로 추가된 아이콘
+  ClipboardList, Sparkles, Home, UserPlus, CalendarDays, FolderTree // 💡 캘린더 및 카테고리 아이콘 추가
 } from "lucide-react";
 
-// 💡 새로운 '신청 내역' 메뉴 그룹 추가
+// 💡 '신청 내역' 및 '서비스 관리' 메뉴 그룹 확장
 const MENU_GROUPS = [
   {
     id: "settings",
@@ -22,8 +22,16 @@ const MENU_GROUPS = [
     ]
   },
   {
+    id: "service",
+    title: "서비스 관리", // 💡 새로 추가된 그룹 (예약 및 카테고리)
+    items: [
+      { name: "예약/견적 관리", href: "/admin/service/reservations", icon: CalendarDays },
+      { name: "카테고리 관리", href: "/admin/service/category", icon: FolderTree },
+    ]
+  },
+  {
     id: "applications",
-    title: "신청 내역",
+    title: "기존 신청 내역",
     items: [
       { name: "설문조사 설정", href: "/admin/clean/survey", icon: ClipboardList },
       { name: "클린UP 관리", href: "/admin/clean/cleanup", icon: Sparkles },
@@ -55,10 +63,7 @@ const MENU_GROUPS = [
 export default function AdminLayoutUI({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); 
   
-  // 💡 UI 확인용 가짜 관리자 정보 (권한 체크 로직 제거)
   const adminInfo = { name: "최고관리자", level: 10 };
-  
-  // 열려있는 아코디언 그룹 상태 (id를 key로 boolean 값 저장)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   // 페이지 이동 시, 현재 경로가 포함된 아코디언 메뉴를 자동으로 열어줌
@@ -84,7 +89,7 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-slate-800">
       
-      {/* 💡 사이드바 영역 */}
+      {/* 사이드바 영역 */}
       <aside className="w-64 bg-slate-900 flex flex-col h-full flex-shrink-0 shadow-2xl z-20">
         <div className="h-16 flex items-center justify-center bg-slate-950 border-b border-slate-800 shadow-sm flex-shrink-0">
           <Link href="/admin/dashboard" className="text-xl font-black text-white tracking-widest hover:text-indigo-400 transition-colors">
@@ -98,7 +103,6 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
             
             return (
               <div key={group.id} className={index !== 0 ? "mt-6" : ""}>
-                {/* 아코디언 헤더 */}
                 <button 
                   onClick={() => toggleGroup(group.id)}
                   className="flex w-full items-center justify-between px-3 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors"
@@ -107,10 +111,8 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
                   {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </button>
 
-                {/* 아코디언 내용 */}
                 <div className={`space-y-1 overflow-hidden transition-all duration-300 ${isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
                   {group.items.map((item) => {
-                    // 현재 페이지와 메뉴의 href가 일치하는지 확인 (서브페이지 포함)
                     const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                     
                     return (
@@ -135,10 +137,8 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
         </nav>
       </aside>
 
-      {/* 💡 메인 컨텐츠 영역 */}
+      {/* 메인 컨텐츠 영역 */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        
-        {/* 상단 헤더 */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm flex-shrink-0 z-10">
           <div className="text-slate-500 font-bold text-sm tracking-wide">
             관리자 대시보드
@@ -160,13 +160,11 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
           </div>
         </header>
 
-        {/* 렌더링 영역 (Children) */}
         <main className="flex-1 overflow-y-auto bg-slate-50">
           {children}
         </main>
       </div>
 
-      {/* 다크 테마 사이드바 전용 커스텀 스크롤바 스타일 */}
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar-dark::-webkit-scrollbar {
           width: 5px;
