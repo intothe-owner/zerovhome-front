@@ -25,7 +25,8 @@ interface ReservationDetail {
   worker: { id: number; name: string; phone?: string; companyName?: string } | null;
   workerId: number | null;
   createdAt: string;
-  extraDetails: { brand: string; year: string; size: string; location: string; environment: string[] }[] | null;
+  // 💡 notes 속성을 올바르게 extraDetails 배열 객체 안으로 포함시켰습니다.
+  extraDetails: { brand: string; year: string; size: string; location: string; environment: string[]; notes?: string; }[] | null;
 }
 
 interface Member {
@@ -35,7 +36,7 @@ interface Member {
   companyName?: string;
 }
 
-// 💡 관리자가 시간을 구체적으로 설정할 수 있도록 텍스트 입력과 빠른 선택을 돕는 옵션
+// 💡 관리자 선택용 시간 옵션
 const TIME_PERIOD_OPTIONS = [
   "오전 (8시~12시)", "오후 (13시~16시)", "언제든 (8시~16시)",
   "08:00","08:30",
@@ -55,7 +56,6 @@ export default function ReservationDetailPage() {
   const queryClient = useQueryClient();
   const reservationId = Number(params.id);
 
-  // 💡 배정, 상태뿐만 아니라 실예약일, 실시간, 실가격까지 관리하는 로컬 폼 상태
   const [form, setForm] = useState({
     status: "PENDING",
     workerId: "",
@@ -64,9 +64,6 @@ export default function ReservationDetailPage() {
     totalPrice: 0,
   });
 
-  // ==========================================
-  // 1. [React Query] 예약 상세 정보 조회
-  // ==========================================
   const { data: reservation, isLoading, isError } = useQuery<ReservationDetail>({
     queryKey: ["reservation", reservationId],
     queryFn: async () => {
@@ -78,9 +75,6 @@ export default function ReservationDetailPage() {
     enabled: !!reservationId,
   });
 
-  // ==========================================
-  // 2. [React Query] 직원(Member) 목록 조회
-  // ==========================================
   const { data: members = [] } = useQuery<Member[]>({
     queryKey: ["members-list"],
     queryFn: async () => {
@@ -90,7 +84,6 @@ export default function ReservationDetailPage() {
     },
   });
 
-  // 데이터 로드 시 폼 초기값 세팅 (고객 희망 내역을 기본값으로 세팅)
   useEffect(() => {
     if (reservation) {
       setForm({
@@ -103,17 +96,14 @@ export default function ReservationDetailPage() {
     }
   }, [reservation]);
 
-  // ==========================================
-  // 3. [React Query] 정보 업데이트 및 배정 (PUT)
-  // ==========================================
   const updateMutation = useMutation({
     mutationFn: async () => {
       const payload = {
         status: form.status,
         workerId: form.workerId ? Number(form.workerId) : null,
-        reservationDate: form.reservationDate, // 💡 확정 날짜 전송
-        reservationTime: form.reservationTime, // 💡 확정 시간 전송
-        totalPrice: Number(form.totalPrice),   // 💡 확정 가격 전송 (콤마 없는 순수 숫자)
+        reservationDate: form.reservationDate, 
+        reservationTime: form.reservationTime, 
+        totalPrice: Number(form.totalPrice),   
       };
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/reservations/${reservationId}/assign`, {
@@ -250,7 +240,7 @@ export default function ReservationDetailPage() {
               {reservation.extraDetails.map((detail, idx) => (
                 <div key={idx} className="bg-slate-50 border border-slate-100 p-5 rounded-xl relative overflow-hidden">
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-400"></div>
-                  <p className="text-sm font-black text-indigo-600 mb-4 border-b border-slate-200 pb-2">#{idx + 1}번 기기 및 환경 정보</p>
+                  <p className="text-sm font-black text-indigo-600 mb-4 border-b border-slate-200 pb-2">기기 및 환경 정보</p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-5 gap-x-4">
                     {detail.brand && <div><span className="text-xs text-slate-400 block mb-1">제조사</span><span className="text-sm font-bold text-slate-700">{detail.brand}</span></div>}
                     {detail.year && <div><span className="text-xs text-slate-400 block mb-1">구입 연식</span><span className="text-sm font-bold text-slate-700">{detail.year}</span></div>}
@@ -268,6 +258,16 @@ export default function ReservationDetailPage() {
                       </div>
                     )}
                   </div>
+
+                  {detail.notes && (
+                    <div className="mt-5 pt-4 border-t border-slate-200">
+                      <span className="text-xs text-slate-400 block mb-2 font-bold">기타사항 (기기 타입 및 수량 등)</span>
+                      <div className="bg-white border border-slate-200 p-4 rounded-lg text-sm font-semibold text-slate-700 whitespace-pre-wrap leading-relaxed shadow-sm">
+                        {detail.notes}
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               ))}
             </div>
@@ -295,31 +295,35 @@ export default function ReservationDetailPage() {
                 />
               </div>
 
-              {/* 확정 시간 */}
+              {/* 💡 확정 시간 (datalist 제거 및 select 태그 적용) */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">확정 방문 시간</label>
-                <input 
-                  type="text" 
-                  list="timeOptions"
-                  value={form.reservationTime} 
+                <select
+                  value={form.reservationTime}
                   onChange={(e) => setForm({...form, reservationTime: e.target.value})}
-                  placeholder="예: 14:00 또는 오후 2시"
-                  className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
-                />
-                <datalist id="timeOptions">
-                  {TIME_PERIOD_OPTIONS.map(time => <option key={time} value={time} />)}
-                </datalist>
+                  className="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-medium bg-white cursor-pointer"
+                >
+                  <option value="" disabled>시간을 선택해주세요</option>
+                  
+                  {/* 만약 기존에 입력된 데이터가 목록에 없는 임의의 텍스트라면 추가로 보여줌 */}
+                  {form.reservationTime && !TIME_PERIOD_OPTIONS.includes(form.reservationTime) && (
+                    <option value={form.reservationTime}>{form.reservationTime} (기존)</option>
+                  )}
+                  
+                  {TIME_PERIOD_OPTIONS.map(time => (
+                    <option key={time} value={time}>{time}</option>
+                  ))}
+                </select>
               </div>
 
-              {/* 💡 최종 결제 금액 (포맷팅 적용) */}
+              {/* 최종 결제 금액 */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <label className="block text-sm font-bold text-indigo-700 mb-2">최종 결제 금액 (실가격)</label>
                 <div className="relative">
                   <input 
-                    type="text" // 💡 콤마를 입력받기 위해 text 타입으로 변경
-                    value={formatNumber(form.totalPrice)} // 화면 표시 시 콤마 추가
+                    type="text" 
+                    value={formatNumber(form.totalPrice)} 
                     onChange={(e) => {
-                      // 입력 시 콤마 제외하고 순수 숫자로 state 변경
                       const rawValue = e.target.value.replace(/,/g, '');
                       setForm({...form, totalPrice: Number(rawValue) || 0});
                     }}

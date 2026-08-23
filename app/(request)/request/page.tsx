@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Calendar, Clock, MapPin, Phone, User, CheckCircle2, AlertCircle, Calculator, X, Copy } from "lucide-react";
+import { Calendar, Clock, MapPin, Phone, User, CheckCircle2, AlertCircle, Calculator, X } from "lucide-react";
 import { formatNumber } from "@/lib/function"; 
 
 interface Category {
@@ -18,14 +18,6 @@ interface PriceInfo {
   basePrice: number;
 }
 
-interface AirconDetail {
-  brand: string;
-  year: string;
-  size: string;
-}
-
-const defaultAirconDetail: AirconDetail = { brand: "", year: "", size: "" };
-
 const BRAND_OPTIONS = ["삼성(Samsung)", "엘지(LG)", "캐리어(Carrier)", "위니아대우(Winia)", "잘 모르겠어요"];
 const YEAR_OPTIONS = ["1년 미만", "1~3년", "3~5년", "5년 이상", "잘 모르겠어요"];
 const SIZE_OPTIONS = ["5~10평", "10평형대", "20평형대", "30평형대", "40평형대", "50평형대", "기타"];
@@ -36,7 +28,6 @@ const ENV_OPTIONS = [
   "입주청소나 인테리어 작업과 동시에 진행됩니다", "에어컨 청소를 해본 경험이 있어요", "해당사항 없음"
 ];
 
-// 💡 시간 선택용 라디오 옵션
 const TIME_PERIOD_OPTIONS = [
   "오전 (8시~12시)",
   "오후 (13시~16시)",
@@ -53,12 +44,12 @@ export default function ReservationPage() {
     reservationDate: "", reservationTime: "", privacyAgreed: false,
   });
 
-  const [extraDetails, setExtraDetails] = useState<AirconDetail[]>([defaultAirconDetail]);
-  
-  const [globalLocation, setGlobalLocation] = useState<string>("");
-  const [globalEnvironment, setGlobalEnvironment] = useState<string[]>([]);
+  // 💡 기기별로 여러 개 생성되던 상태를 완전히 지우고, "단 1개의 객체"로 통합
+  const [airconDetail, setAirconDetail] = useState({
+    brand: "", year: "", size: "", location: "", notes: ""
+  });
+  const [environment, setEnvironment] = useState<string[]>([]);
 
-  const [applyToAll, setApplyToAll] = useState(false);
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
 
   const { data: categories = [] } = useQuery<Category[]>({
@@ -110,47 +101,14 @@ export default function ReservationPage() {
     }
   }, [priceInfo, unitCount]);
 
-  useEffect(() => {
-    const count = Math.max(1, Number(unitCount) || 1);
-    setExtraDetails(prev => {
-      if (prev.length === count) return prev;
-      if (prev.length < count) {
-        const added = Array.from({ length: count - prev.length }).map(() =>
-          applyToAll ? { ...prev[0] } : { ...defaultAirconDetail }
-        );
-        return [...prev, ...added];
-      }
-      return prev.slice(0, count);
-    });
-  }, [unitCount, applyToAll]);
-
-  const updateExtraDetail = (index: number, key: keyof AirconDetail, value: any) => {
-    setExtraDetails(prev => {
-      const next = [...prev];
-      next[index] = { ...next[index], [key]: value };
-
-      if (applyToAll && index === 0) {
-        return next.map(item => ({ ...item, [key]: value }));
-      }
-      return next;
-    });
-  };
-
-  const toggleGlobalEnvironment = (val: string) => {
-    setGlobalEnvironment(prev => {
+  const toggleEnvironment = (val: string) => {
+    setEnvironment(prev => {
       if (val === "해당사항 없음") return ["해당사항 없음"];
       let newEnv = prev.filter(e => e !== "해당사항 없음");
       if (newEnv.includes(val)) newEnv = newEnv.filter(e => e !== val);
       else newEnv.push(val);
       return newEnv;
     });
-  };
-
-  const handleApplyToAllChange = (checked: boolean) => {
-    setApplyToAll(checked);
-    if (checked) {
-      setExtraDetails(prev => prev.map(() => ({ ...prev[0] })));
-    }
   };
 
   const submitMutation = useMutation({
@@ -180,27 +138,22 @@ export default function ReservationPage() {
       return alert("수량(평수/대수)을 정확히 입력해주세요.");
     }
     
+    // 💡 하나의 폼에 대해서만 필수값 체크
     if (isAirconCategory && priceInfo.unitType !== 'FIXED') {
-      if (!globalLocation) return alert("공통 설치 장소를 선택해주세요.");
-      for (let i = 0; i < extraDetails.length; i++) {
-        const d = extraDetails[i];
-        if (!d.brand || !d.year || !d.size) {
-          return alert(`${i + 1}번 기기의 제조사, 연식, 크기를 모두 선택해주세요.`);
-        }
+      if (!airconDetail.brand || !airconDetail.year || !airconDetail.size || !airconDetail.location) {
+        return alert("제조사, 연식, 크기, 설치장소를 모두 선택해주세요.");
       }
     }
 
-    // 💡 날짜와 시간이 선택되었는지 체크
     if (!form.reservationDate) return alert("희망 예약 날짜를 선택해주세요.");
     if (!form.reservationTime) return alert("희망 예약 시간을 선택해주세요.");
-
     if (!form.privacyAgreed) return alert("개인정보 수집 및 이용에 동의해주세요.");
 
-    const finalExtraDetails = extraDetails.map(detail => ({
-      ...detail,
-      location: globalLocation,
-      environment: globalEnvironment
-    }));
+    // 💡 백엔드 호환성을 위해 단일 폼 데이터를 배열([{}]) 안에 감싸서 전송
+    const finalExtraDetails = isAirconCategory ? [{
+      ...airconDetail,
+      environment
+    }] : null;
 
     const payload = {
       category1Id: cat1Id,
@@ -211,7 +164,7 @@ export default function ReservationPage() {
       address: form.address, detailAddress: form.detailAddress,
       reservationDate: form.reservationDate, reservationTime: form.reservationTime,
       privacyAgreed: form.privacyAgreed,
-      extraDetails: isAirconCategory ? finalExtraDetails : null 
+      extraDetails: finalExtraDetails 
     };
 
     submitMutation.mutate(payload);
@@ -224,7 +177,7 @@ export default function ReservationPage() {
   const CustomRadio = ({ label, value, stateValue, onChange }: any) => {
     const isChecked = stateValue === value;
     return (
-      <label className={`w-full flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all ${isChecked ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 bg-white'}`}>
+      <label className={`w-full flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all shrink-0 ${isChecked ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 bg-white'}`}>
         <input type="radio" className="hidden" value={value} checked={isChecked} onChange={onChange} />
         <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${isChecked ? 'border-indigo-600' : 'border-slate-300'}`}>
           {isChecked && <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full" />}
@@ -236,7 +189,7 @@ export default function ReservationPage() {
 
   const CustomCheckbox = ({ label, value, isChecked, onChange }: any) => {
     return (
-      <label className={`w-full flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all ${isChecked ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 bg-white'}`}>
+      <label className={`w-full flex items-center gap-3 p-3.5 border rounded-xl cursor-pointer transition-all shrink-0 ${isChecked ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 bg-white'}`}>
         <input type="checkbox" className="hidden" value={value} checked={isChecked} onChange={onChange} />
         <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border ${isChecked ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}`}>
           {isChecked && <CheckCircle2 size={14} className="text-white" />}
@@ -248,11 +201,6 @@ export default function ReservationPage() {
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{__html: `
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-      `}} />
-
       <div className="min-h-screen bg-slate-50 py-12 px-4 mt-10">
         <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
           
@@ -332,103 +280,86 @@ export default function ReservationPage() {
               </div>
             )}
 
-            {/* 3. 기기별 및 공통 상세 정보 입력 */}
+            {/* 💡 3. 기기 상세 정보 입력 (단일 폼, 모든 옵션 세로 나열) */}
             {isAirconCategory && Number(unitCount) > 0 && priceInfo?.unitType !== 'FIXED' && (
               <section className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-slate-200 pb-3 gap-3">
-                  <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                    2. 기기별 상세 정보 입력
-                  </h2>
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 border-b border-slate-200 pb-3">
+                  2. 에어컨 상세 정보 입력
+                </h2>
+
+                <div className="bg-white p-6 md:p-8 rounded-2xl border border-indigo-200 shadow-sm space-y-8">
                   
-                  {Number(unitCount) > 1 && (
-                    <label className="flex items-center gap-2 text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg cursor-pointer border border-indigo-100 hover:bg-indigo-100 transition-colors">
-                      <input 
-                        type="checkbox" checked={applyToAll} onChange={e => handleApplyToAllChange(e.target.checked)} 
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer" 
-                      />
-                      <Copy size={14} /> #1번 기기와 모두 동일하게 적용
-                    </label>
-                  )}
-                </div>
-
-                <div className="space-y-6">
-                  {extraDetails.map((detail, index) => (
-                    <div 
-                      key={index} 
-                      className={`p-6 md:p-8 rounded-2xl border transition-all duration-300 ${
-                        applyToAll && index > 0 
-                          ? 'bg-slate-50 border-slate-200 opacity-60 pointer-events-none'
-                          : 'bg-white border-indigo-200 shadow-sm'
-                      }`}
-                    >
-                      <h3 className="text-base font-black text-indigo-700 mb-6 bg-indigo-50 inline-block px-3 py-1.5 rounded-lg">
-                        #{index + 1}번 기기
-                      </h3>
-                      
-                      <div className="flex flex-col space-y-8">
-                        <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-3">제조사</label>
-                          <div className="flex flex-col gap-2">
-                            {BRAND_OPTIONS.map(opt => (
-                              <CustomRadio key={opt} label={opt} value={opt} stateValue={detail.brand} onChange={() => updateExtraDetail(index, 'brand', opt)} />
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-3">연식</label>
-                          <div className="flex flex-col gap-2">
-                            {YEAR_OPTIONS.map(opt => (
-                              <CustomRadio key={opt} label={opt} value={opt} stateValue={detail.year} onChange={() => updateExtraDetail(index, 'year', opt)} />
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-3">에어컨 크기</label>
-                          <div className="flex flex-col gap-2">
-                            {SIZE_OPTIONS.map(opt => (
-                              <CustomRadio key={opt} label={opt} value={opt} stateValue={detail.size} onChange={() => updateExtraDetail(index, 'size', opt)} />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="bg-white p-6 md:p-8 rounded-2xl border border-indigo-200 shadow-sm mt-8">
-                  <h3 className="text-base font-black text-indigo-700 mb-6 bg-indigo-50 inline-block px-3 py-1.5 rounded-lg">
-                    공통 설치 장소 및 시공 환경
-                  </h3>
-                  
-                  <div className="flex flex-col space-y-8">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-3">설치 장소</label>
-                      <div className="flex flex-col gap-2">
-                        {LOCATION_OPTIONS.map(opt => (
-                          <CustomRadio key={opt} label={opt} value={opt} stateValue={globalLocation} onChange={() => setGlobalLocation(opt)} />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100">
-                      <label className="block text-sm font-bold text-slate-700 mb-3">
-                        시공 환경 <span className="text-slate-400 font-medium ml-1">(중복 선택 가능)</span>
-                      </label>
-                      <div className="flex flex-col gap-2">
-                        {ENV_OPTIONS.map(opt => (
-                          <CustomCheckbox 
-                            key={opt} 
-                            label={opt} 
-                            value={opt} 
-                            isChecked={globalEnvironment.includes(opt)} 
-                            onChange={() => toggleGlobalEnvironment(opt)} 
-                          />
-                        ))}
-                      </div>
+                  {/* 제조사 */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3">제조사</label>
+                    {/* 💡 flex-col을 사용하여 아래로 한 줄씩 나열되도록 복구 */}
+                    <div className="flex flex-col gap-2">
+                      {BRAND_OPTIONS.map(opt => (
+                        <CustomRadio key={opt} label={opt} value={opt} stateValue={airconDetail.brand} onChange={() => setAirconDetail({...airconDetail, brand: opt})} />
+                      ))}
                     </div>
                   </div>
-                </div>
 
+                  {/* 연식 */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3">연식</label>
+                    <div className="flex flex-col gap-2">
+                      {YEAR_OPTIONS.map(opt => (
+                        <CustomRadio key={opt} label={opt} value={opt} stateValue={airconDetail.year} onChange={() => setAirconDetail({...airconDetail, year: opt})} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 크기 */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3">에어컨 크기</label>
+                    <div className="flex flex-col gap-2">
+                      {SIZE_OPTIONS.map(opt => (
+                        <CustomRadio key={opt} label={opt} value={opt} stateValue={airconDetail.size} onChange={() => setAirconDetail({...airconDetail, size: opt})} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 설치 장소 */}
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-3">설치 장소</label>
+                    <div className="flex flex-col gap-2">
+                      {LOCATION_OPTIONS.map(opt => (
+                        <CustomRadio key={opt} label={opt} value={opt} stateValue={airconDetail.location} onChange={() => setAirconDetail({...airconDetail, location: opt})} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 시공 환경 */}
+                  <div className="pt-4 border-t border-slate-100">
+                    <label className="block text-sm font-bold text-slate-700 mb-3">
+                      시공 환경 <span className="text-slate-400 font-medium ml-1">(중복 선택 가능)</span>
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      {ENV_OPTIONS.map(opt => (
+                        <CustomCheckbox 
+                          key={opt} 
+                          label={opt} 
+                          value={opt} 
+                          isChecked={environment.includes(opt)} 
+                          onChange={() => toggleEnvironment(opt)} 
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 💡 기타사항 텍스트 에어리어 (placeholder 적용) */}
+                  <div className="pt-4 border-t border-slate-100">
+                    <label className="block text-sm font-bold text-slate-700 mb-3">기타사항 (기기 상세 수량 등)</label>
+                    <textarea 
+                      value={airconDetail.notes}
+                      onChange={(e) => setAirconDetail({...airconDetail, notes: e.target.value})}
+                      placeholder="천장형 : 00대&#13;&#10;벽걸이형 : 00대&#13;&#10;스탠드형 : 00대"
+                      className="w-full border border-slate-300 rounded-lg p-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-h-[120px] resize-y leading-relaxed"
+                    />
+                  </div>
+
+                </div>
               </section>
             )}
 

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { formatNumber } from "@/lib/function";
 
-// 💡 예약 데이터 타입 정의 (담당 직원 정보 추가)
+// 💡 예약 데이터 타입 정의 (notes 추가)
 interface ReservationItem {
   id: number;
   category1: { id: number; name: string };
@@ -23,7 +23,14 @@ interface ReservationItem {
   status: 'PENDING' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   worker: { id: number; name: string; phone?: string; companyName?: string } | null;
   createdAt: string;
-  extraDetails?: { brand: string; year: string; size: string; location: string; environment: string[] }[] | null;
+  extraDetails?: { 
+    brand: string; 
+    year: string; 
+    size: string; 
+    location: string; 
+    environment: string[];
+    notes?: string; // 💡 기타사항 추가
+  }[] | null;
 }
 
 // 예약 상태 배지 헬퍼 함수
@@ -201,7 +208,7 @@ export default function ReservationInquiryPage() {
         </div>
       </div>
 
-      {/* 💡 예약 상세 정보 모달 (관리자 화면과 유사하게 고도화) */}
+      {/* 💡 예약 상세 정보 모달 */}
       {selectedItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
@@ -332,7 +339,7 @@ export default function ReservationInquiryPage() {
                     {selectedItem.extraDetails.map((detail, idx) => (
                       <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-xl relative overflow-hidden">
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-400"></div>
-                        <p className="text-xs font-black text-indigo-600 mb-3 border-b border-slate-200 pb-2">#{idx + 1}번 기기</p>
+                        <p className="text-xs font-black text-indigo-600 mb-3 border-b border-slate-200 pb-2">기기 정보</p>
                         
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-4">
                           {detail.brand && <div><span className="text-xs text-slate-400 block mb-1">제조사</span><span className="text-sm font-bold text-slate-700">{detail.brand}</span></div>}
@@ -351,6 +358,17 @@ export default function ReservationInquiryPage() {
                             </div>
                           </div>
                         )}
+
+                        {/* 💡 기타사항 추가 영역 */}
+                        {detail.notes && (
+                          <div className="mt-4 pt-3 border-t border-slate-200">
+                            <span className="text-xs text-slate-400 block mb-2">기타사항 (기기 타입 및 수량 등)</span>
+                            <div className="bg-white border border-slate-200 p-3 rounded-lg text-sm font-semibold text-slate-700 whitespace-pre-wrap leading-relaxed">
+                              {detail.notes}
+                            </div>
+                          </div>
+                        )}
+
                       </div>
                     ))}
                   </div>
