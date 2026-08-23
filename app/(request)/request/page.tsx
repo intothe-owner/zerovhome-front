@@ -18,7 +18,6 @@ interface PriceInfo {
   basePrice: number;
 }
 
-// 💡 설치장소(location)를 개별 폼에서 제외합니다.
 interface AirconDetail {
   brand: string;
   year: string;
@@ -37,6 +36,13 @@ const ENV_OPTIONS = [
   "입주청소나 인테리어 작업과 동시에 진행됩니다", "에어컨 청소를 해본 경험이 있어요", "해당사항 없음"
 ];
 
+// 💡 시간 선택용 라디오 옵션
+const TIME_PERIOD_OPTIONS = [
+  "오전 (8시~12시)",
+  "오후 (13시~16시)",
+  "언제든 (8시~16시)"
+];
+
 export default function ReservationPage() {
   const [cat1Id, setCat1Id] = useState<number | "">("");
   const [cat2Id, setCat2Id] = useState<number | "">("");
@@ -47,10 +53,8 @@ export default function ReservationPage() {
     reservationDate: "", reservationTime: "", privacyAgreed: false,
   });
 
-  // 💡 기기별 상태 (브랜드, 연식, 크기만 관리)
   const [extraDetails, setExtraDetails] = useState<AirconDetail[]>([defaultAirconDetail]);
   
-  // 💡 공통 상태 (설치 장소, 시공 환경)
   const [globalLocation, setGlobalLocation] = useState<string>("");
   const [globalEnvironment, setGlobalEnvironment] = useState<string[]>([]);
 
@@ -176,7 +180,6 @@ export default function ReservationPage() {
       return alert("수량(평수/대수)을 정확히 입력해주세요.");
     }
     
-    // 💡 에어컨 카테고리 필수값 체크 수정 (개별 폼의 필수값 + 공통 설치장소)
     if (isAirconCategory && priceInfo.unitType !== 'FIXED') {
       if (!globalLocation) return alert("공통 설치 장소를 선택해주세요.");
       for (let i = 0; i < extraDetails.length; i++) {
@@ -187,9 +190,12 @@ export default function ReservationPage() {
       }
     }
 
+    // 💡 날짜와 시간이 선택되었는지 체크
+    if (!form.reservationDate) return alert("희망 예약 날짜를 선택해주세요.");
+    if (!form.reservationTime) return alert("희망 예약 시간을 선택해주세요.");
+
     if (!form.privacyAgreed) return alert("개인정보 수집 및 이용에 동의해주세요.");
 
-    // 💡 백엔드 전송 전: 각 기기 배열 데이터 안에 공통 설치장소와 시공환경을 덧붙여서 보냅니다.
     const finalExtraDetails = extraDetails.map(detail => ({
       ...detail,
       location: globalLocation,
@@ -211,7 +217,9 @@ export default function ReservationPage() {
     submitMutation.mutate(payload);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
   const CustomRadio = ({ label, value, stateValue, onChange }: any) => {
     const isChecked = stateValue === value;
@@ -240,7 +248,12 @@ export default function ReservationPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-slate-50 py-12 px-4">
+      <style dangerouslySetInnerHTML={{__html: `
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
+
+      <div className="min-h-screen bg-slate-50 py-12 px-4 mt-10">
         <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
           
           <div className="bg-indigo-600 px-8 py-10 text-white text-center">
@@ -338,7 +351,6 @@ export default function ReservationPage() {
                   )}
                 </div>
 
-                {/* 개별 기기 정보 (제조사, 연식, 크기) */}
                 <div className="space-y-6">
                   {extraDetails.map((detail, index) => (
                     <div 
@@ -383,14 +395,12 @@ export default function ReservationPage() {
                   ))}
                 </div>
 
-                {/* 💡 공통 정보 (설치장소 & 시공환경 - 맨 아래 1번만 노출) */}
                 <div className="bg-white p-6 md:p-8 rounded-2xl border border-indigo-200 shadow-sm mt-8">
                   <h3 className="text-base font-black text-indigo-700 mb-6 bg-indigo-50 inline-block px-3 py-1.5 rounded-lg">
                     공통 설치 장소 및 시공 환경
                   </h3>
                   
                   <div className="flex flex-col space-y-8">
-                    {/* 설치 장소 */}
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-3">설치 장소</label>
                       <div className="flex flex-col gap-2">
@@ -400,7 +410,6 @@ export default function ReservationPage() {
                       </div>
                     </div>
 
-                    {/* 시공 환경 (체크박스) */}
                     <div className="pt-4 border-t border-slate-100">
                       <label className="block text-sm font-bold text-slate-700 mb-3">
                         시공 환경 <span className="text-slate-400 font-medium ml-1">(중복 선택 가능)</span>
@@ -435,8 +444,37 @@ export default function ReservationPage() {
                   <input type="text" name="address" value={form.address} onChange={handleChange} required className="w-full border border-slate-300 rounded-lg p-3 mb-2 outline-none focus:border-indigo-500 bg-slate-50" placeholder="기본 주소" />
                   <input type="text" name="detailAddress" value={form.detailAddress} onChange={handleChange} className="w-full border border-slate-300 rounded-lg p-3 outline-none focus:border-indigo-500 bg-slate-50" placeholder="상세 주소" />
                 </div>
-                <div><label className="text-sm font-semibold text-slate-700 mb-2 block">희망 예약 날짜</label><input type="date" name="reservationDate" value={form.reservationDate} onChange={handleChange} required min={new Date().toISOString().split('T')[0]} className="w-full border border-slate-300 rounded-lg p-3 outline-none focus:border-indigo-500 bg-slate-50" /></div>
-                <div><label className="text-sm font-semibold text-slate-700 mb-2 block">희망 예약 시간</label><input type="time" name="reservationTime" value={form.reservationTime} onChange={handleChange} required className="w-full border border-slate-300 rounded-lg p-3 outline-none focus:border-indigo-500 bg-slate-50" /></div>
+                
+                {/* 💡 예약 날짜 */}
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">희망 예약 날짜</label>
+                  <input 
+                    type="date" 
+                    name="reservationDate" 
+                    value={form.reservationDate} 
+                    onChange={handleChange} 
+                    required 
+                    min={new Date().toISOString().split('T')[0]} 
+                    className="w-full border border-slate-300 rounded-lg p-3 outline-none focus:border-indigo-500 bg-slate-50 cursor-pointer" 
+                  />
+                </div>
+                
+                {/* 💡 예약 시간 (라디오 버튼 적용) */}
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">희망 예약 시간</label>
+                  <div className="flex flex-col gap-2">
+                    {TIME_PERIOD_OPTIONS.map((timeOpt) => (
+                      <CustomRadio 
+                        key={timeOpt} 
+                        label={timeOpt} 
+                        value={timeOpt} 
+                        stateValue={form.reservationTime} 
+                        onChange={() => setForm({ ...form, reservationTime: timeOpt })} 
+                      />
+                    ))}
+                  </div>
+                </div>
+
               </div>
             </section>
 
