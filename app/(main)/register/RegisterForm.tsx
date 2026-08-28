@@ -137,7 +137,7 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl mb-6">
-        <button
+        {/* <button
           type="button"
           className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${
             memberType === "NORMAL"
@@ -147,8 +147,8 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
           onClick={() => handleTypeChange("NORMAL")}
         >
           일반 회원
-        </button>
-        <button
+        </button> */}
+        {/* <button
           type="button"
           className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${
             memberType === "UNION"
@@ -158,7 +158,7 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
           onClick={() => handleTypeChange("UNION")}
         >
           조합원회원
-        </button>
+        </button> */}
       </div>
 
       {settings?.useEmailAsLoginId ? (
