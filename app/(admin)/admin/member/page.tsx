@@ -1,14 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Edit2, Trash2, List, Shield, Search, Loader2, FileText, CheckCircle } from "lucide-react"; // 💡 Search 아이콘 추가 확인
+import { Users, Edit2, Trash2, List, Shield, Search, Loader2, FileText, CheckCircle } from "lucide-react";
 
 const LEVEL_NAMES: Record<number, string> = {
   0: "차단/대기", 1: "일반회원", 2: "정회원", 3: "우수회원", 4: "VIP회원",
   5: "특별회원", 6: "부관리자", 7: "운영자", 8: "부서장", 9: "관리자", 10: "최고관리자"
 };
 
-export default function MemberManager() {
+// 💡 settings props를 받을 수 있도록 인터페이스 추가
+interface MemberManagerProps {
+  settings?: any;
+}
+
+export default function MemberManager({ settings }: MemberManagerProps) {
   const [members, setMembers] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<"LIST" | "FORM">("LIST");
   const [isLoading, setIsLoading] = useState(false);
@@ -16,14 +21,16 @@ export default function MemberManager() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // 💡 검색 관련 상태 추가
   const [searchType, setSearchType] = useState("loginId");
   const [keyword, setKeyword] = useState("");
 
   const [filterLevel, setFilterLevel] = useState<"ALL" | "0">("ALL");
 
+  // 💡 폼 데이터에 생년월일, 회사명, 세분화된 주소 추가
   const initialForm = {
-    id: 0, loginId: "", name: "", nickname: "", phone: "", mobile: "", address: "", level: 1, password: "", createdAt: ""
+    id: 0, loginId: "", name: "", nickname: "", phone: "", mobile: "", dob: "",
+    postcode: "", address: "", address_detail: "", companyName: "",
+    level: 1, password: "", createdAt: ""
   };
   const [formData, setFormData] = useState(initialForm);
 
@@ -32,7 +39,6 @@ export default function MemberManager() {
     "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
   });
 
-  // 1. 회원 목록 조회 (💡 검색 파라미터 추가)
   const fetchMembers = async (currentPage = 1, currentFilter = filterLevel) => {
     setIsLoading(true);
     try {
@@ -44,7 +50,6 @@ export default function MemberManager() {
         queryParams.append("searchType", searchType);
         queryParams.append("keyword", keyword);
       }
-      // ✨ 특정 레벨 필터가 활성화된 경우 추가
       if (currentFilter !== "ALL") {
         queryParams.append("level", currentFilter);
       }
@@ -72,13 +77,11 @@ export default function MemberManager() {
     fetchMembers(1);
   }, []);
 
-  // 💡 검색 버튼 클릭 핸들러
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchMembers(1); // 검색 시 1페이지로 이동
+    fetchMembers(1);
   };
 
-  // ✨ 신규: 가입 승인 처리
   const handleApprove = async (id: number) => {
     if (!confirm("해당 회원의 가입을 승인하시겠습니까?\n설정된 기본 회원 등급으로 상향됩니다.")) return;
     
@@ -177,7 +180,6 @@ export default function MemberManager() {
         <div className="space-y-4">
           
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-            {/* ✨ 상태 필터 탭 */}
             <div className="flex gap-2 w-full md:w-auto">
               <button 
                 onClick={() => { setFilterLevel("ALL"); fetchMembers(1, "ALL"); }}
@@ -193,7 +195,6 @@ export default function MemberManager() {
               </button>
             </div>
 
-            {/* 검색 폼 */}
             <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto">
               <select value={searchType} onChange={(e) => setSearchType(e.target.value)} className="border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-indigo-500 w-28">
                 <option value="loginId">아이디</option>
@@ -252,7 +253,6 @@ export default function MemberManager() {
                       {new Date(m.createdAt).toLocaleDateString()}
                     </td>
                     <td className="p-4 text-center">
-                      {/* ✨ 레벨 0일 때 노출되는 [승인] 버튼 */}
                       {m.level === 0 && (
                         <button onClick={() => handleApprove(m.id)} className="text-emerald-500 hover:text-emerald-700 mr-3 transition-colors" title="가입 승인">
                           <CheckCircle size={18}/>
@@ -276,7 +276,6 @@ export default function MemberManager() {
               </tbody>
             </table>
 
-            {/* 페이지네이션 (기존과 동일) */}
             {totalPages > 1 && (
               <div className="p-4 border-t border-slate-100 flex justify-center gap-2">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
@@ -296,7 +295,6 @@ export default function MemberManager() {
         </div>
       )}
 
-      {/* --- FORM 영역은 동일 --- */}
       {viewMode === "FORM" && (
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-4">
@@ -310,28 +308,62 @@ export default function MemberManager() {
           </div>
 
           <div className="grid grid-cols-2 gap-6">
-            <div>
-              <label className="block font-bold mb-1 text-slate-700">이름</label>
-              <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required className={inputClass} />
-            </div>
-            <div>
-              <label className="block font-bold mb-1 text-slate-700">닉네임</label>
-              <input type="text" value={formData.nickname} onChange={e => setFormData({...formData, nickname: e.target.value})} className={inputClass} />
-            </div>
+            
+            {/* 💡 settings에 따른 필드 조건부 렌더링 적용 */}
+            
+            {settings?.useName && (
+              <div>
+                <label className="block font-bold mb-1 text-slate-700">이름</label>
+                <input type="text" value={formData.name || ""} onChange={e => setFormData({...formData, name: e.target.value})} className={inputClass} />
+              </div>
+            )}
+            
+            {settings?.useNickname && (
+              <div>
+                <label className="block font-bold mb-1 text-slate-700">닉네임</label>
+                <input type="text" value={formData.nickname || ""} onChange={e => setFormData({...formData, nickname: e.target.value})} className={inputClass} />
+              </div>
+            )}
 
-            <div>
-              <label className="block font-bold mb-1 text-slate-700">유선 전화번호</label>
-              <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className={inputClass} />
-            </div>
-            <div>
-              <label className="block font-bold mb-1 text-slate-700">휴대폰 번호</label>
-              <input type="text" value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})} className={inputClass} />
-            </div>
+            {settings?.usePhone && (
+              <div>
+                <label className="block font-bold mb-1 text-slate-700">유선 전화번호</label>
+                <input type="text" value={formData.phone || ""} onChange={e => setFormData({...formData, phone: e.target.value})} className={inputClass} />
+              </div>
+            )}
+            
+            {settings?.useMobile && (
+              <div>
+                <label className="block font-bold mb-1 text-slate-700">휴대폰 번호</label>
+                <input type="text" value={formData.mobile || ""} onChange={e => setFormData({...formData, mobile: e.target.value})} className={inputClass} />
+              </div>
+            )}
 
-            <div className="col-span-2">
-              <label className="block font-bold mb-1 text-slate-700">주소</label>
-              <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className={inputClass} />
-            </div>
+            {settings?.useDob && (
+              <div>
+                <label className="block font-bold mb-1 text-slate-700">생년월일</label>
+                <input type="date" value={formData.dob || ""} onChange={e => setFormData({...formData, dob: e.target.value})} className={inputClass} />
+              </div>
+            )}
+
+            {/* 회사명(주로 조합원이나 특정 등급인 경우)은 데이터가 있을 때 노출하거나 항상 수정할 수 있게 배치 */}
+            {formData.companyName !== undefined && formData.companyName !== null && (
+              <div>
+                <label className="block font-bold mb-1 text-slate-700">기업명/소속</label>
+                <input type="text" value={formData.companyName || ""} onChange={e => setFormData({...formData, companyName: e.target.value})} className={inputClass} />
+              </div>
+            )}
+
+            {settings?.useAddress && (
+              <div className="col-span-2 space-y-2">
+                <label className="block font-bold mb-1 text-slate-700">주소</label>
+                <div className="flex gap-2">
+                  <input type="text" value={formData.postcode || ""} onChange={e => setFormData({...formData, postcode: e.target.value})} placeholder="우편번호" className={`${inputClass} w-32`} />
+                  <input type="text" value={formData.address || ""} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="기본 주소" className={`${inputClass} flex-1`} />
+                </div>
+                <input type="text" value={formData.address_detail || ""} onChange={e => setFormData({...formData, address_detail: e.target.value})} placeholder="상세 주소를 입력해주세요" className={inputClass} />
+              </div>
+            )}
 
             <div className="col-span-2 border-t border-slate-100 pt-6 mt-2">
               <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -358,7 +390,7 @@ export default function MemberManager() {
                   <label className="block font-bold mb-1 text-slate-700">비밀번호 변경</label>
                   <input 
                     type="password" 
-                    value={formData.password} 
+                    value={formData.password || ""} 
                     onChange={e => setFormData({...formData, password: e.target.value})} 
                     placeholder="변경 시에만 입력하세요." 
                     className={inputClass} 
