@@ -63,7 +63,7 @@ const MENU_GROUPS = [
 export default function AdminLayoutUI({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); 
   const [isAuthorized, setIsAuthorized] = useState(false);
-   const [adminInfo, setAdminInfo] = useState({ name: "", level: 0 });
+  const [adminInfo, setAdminInfo] = useState({ name: "", level: 0 });
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
