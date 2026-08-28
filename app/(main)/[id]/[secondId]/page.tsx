@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import BlockRenderer from "@/components/main/BlockRenderer";
 import MainSlider from "@/components/main/MainSlider";
 import TabMenu from "@/components/main/TabMenu";
+import CertificationList from "@/components/main/CertificationList";
 
 // 1. 데이터 페칭 함수 정의
 const fetchNestedPageData = async (targetId: string) => {
@@ -87,7 +88,9 @@ export default function NestedSubPage() {
 
       {/* 4. 탭 메뉴 컴포넌트 렌더링 */}
       <TabMenu allMenus={allMenus} currentMenuId={pageData.menuId} />
-
+      {secondId === "cert" ? (
+          <CertificationList />
+        ) : null}
       {/* 5. 본문 렌더링 */}
       {pageData.contentBlocks && pageData.contentBlocks.length > 0 && (
         <div className="mt-8">
