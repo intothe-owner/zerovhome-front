@@ -1,19 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Users, Edit2, Trash2, List, Shield, Search, Loader2, FileText, CheckCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Users, Edit2, Trash2, List, Shield, Search, Loader2, FileText, CheckCircle, X } from "lucide-react";
+import Script from "next/script";
+import { useQuery } from "@tanstack/react-query"; // 💡 useQuery 추가
 
 const LEVEL_NAMES: Record<number, string> = {
   0: "차단/대기", 1: "일반회원", 2: "정회원", 3: "우수회원", 4: "VIP회원",
   5: "특별회원", 6: "부관리자", 7: "운영자", 8: "부서장", 9: "관리자", 10: "최고관리자"
 };
 
-// 💡 settings props를 받을 수 있도록 인터페이스 추가
-interface MemberManagerProps {
-  settings?: any;
-}
+// 💡 설정 불러오기 함수 (관리자용이므로 가입 차단 상태여도 설정값은 불러옵니다)
+const fetchMemberSettings = async () => {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/member-settings`);
+  const json = await res.json();
+  if (json.success) {
+    return json.data;
+  }
+  throw new Error("설정 로드 실패");
+};
 
-export default function MemberManager({ settings }: MemberManagerProps) {
+export default function MemberManager() {
   const [members, setMembers] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<"LIST" | "FORM">("LIST");
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +33,13 @@ export default function MemberManager({ settings }: MemberManagerProps) {
 
   const [filterLevel, setFilterLevel] = useState<"ALL" | "0">("ALL");
 
-  // 💡 폼 데이터에 생년월일, 회사명, 세분화된 주소 추가
+  // 💡 설정 데이터 페칭 (React Query)
+  const { data: settings, isLoading: isSettingsLoading } = useQuery({
+    queryKey: ['memberSettings'],
+    queryFn: fetchMemberSettings,
+    retry: false,
+  });
+
   const initialForm = {
     id: 0, loginId: "", name: "", nickname: "", phone: "", mobile: "", dob: "",
     postcode: "", address: "", address_detail: "", companyName: "",
@@ -34,10 +47,19 @@ export default function MemberManager({ settings }: MemberManagerProps) {
   };
   const [formData, setFormData] = useState(initialForm);
 
-  const getAuthHeaders = () => ({
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
-  });
+  // 우편번호 모달 상태 및 Ref
+  const [isPostcodeModalOpen, setIsPostcodeModalOpen] = useState(false);
+  const postcodeRef = useRef<HTMLDivElement>(null);
+
+  const getAuthHeaders = () => {
+    const rawToken = localStorage.getItem("token") || "";
+    const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
+
+    return {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${cleanToken}`
+    };
+  };
 
   const fetchMembers = async (currentPage = 1, currentFilter = filterLevel) => {
     setIsLoading(true);
@@ -155,259 +177,349 @@ export default function MemberManager({ settings }: MemberManagerProps) {
     }
   };
 
+  // 💡 우편번호 검색 팝업 열기
+  const openPostcodeModal = () => {
+    if (typeof window === "undefined" || !(window as any).daum) {
+      alert("우편번호 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    setIsPostcodeModalOpen(true);
+  };
+
+  // 💡 우편번호 모달 렌더링 로직
+  useEffect(() => {
+    if (isPostcodeModalOpen && postcodeRef.current && (window as any).daum) {
+      new (window as any).daum.Postcode({
+        oncomplete: (data: any) => {
+          setFormData((prev) => ({
+            ...prev,
+            postcode: data.zonecode,
+            address: data.address,
+          }));
+          setIsPostcodeModalOpen(false);
+          
+          setTimeout(() => {
+            const detailInput = document.querySelector('input[name="address_detail"]') as HTMLInputElement;
+            if (detailInput) detailInput.focus();
+          }, 100);
+        },
+        width: '100%',
+        height: '100%'
+      }).embed(postcodeRef.current);
+    }
+  }, [isPostcodeModalOpen]);
+
   const inputClass = "w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-indigo-500";
 
-  return (
-    <div className="max-w-6xl mx-auto space-y-6 relative">
-      
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-2xl font-extrabold text-slate-900">회원 관리</h2>
-          <p className="text-sm text-slate-500 mt-1">가입된 회원 목록을 조회하고 정보 및 등급(권한)을 수정합니다.</p>
-        </div>
-        
-        {viewMode === "FORM" && (
-          <button 
-            onClick={() => { setViewMode("LIST"); setFormData(initialForm); }}
-            className="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm hover:bg-black transition"
-          >
-            <List size={16}/> 목록으로
-          </button>
-        )}
+  if (isSettingsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="animate-spin text-indigo-600" size={32} />
       </div>
+    );
+  }
 
-      {viewMode === "LIST" && (
-        <div className="space-y-4">
-          
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex gap-2 w-full md:w-auto">
+  return (
+    <>
+      {/* 다음 우편번호 API 스크립트 로드 */}
+      <Script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" strategy="lazyOnload" />
+
+      {/* 우편번호 검색 모달창 UI */}
+      {isPostcodeModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col transform transition-all">
+            <div className="flex justify-between items-center p-4 border-b border-slate-100">
+              <h3 className="font-bold text-lg text-slate-800">우편번호 찾기</h3>
               <button 
-                onClick={() => { setFilterLevel("ALL"); fetchMembers(1, "ALL"); }}
-                className={`px-5 py-2 rounded-lg text-sm font-bold transition-colors ${filterLevel === "ALL" ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                type="button" 
+                onClick={() => setIsPostcodeModalOpen(false)} 
+                className="p-1 text-slate-400 hover:text-slate-600 transition-colors bg-slate-100 hover:bg-slate-200 rounded-full"
               >
-                전체 회원
-              </button>
-              <button 
-                onClick={() => { setFilterLevel("0"); fetchMembers(1, "0"); }}
-                className={`px-5 py-2 rounded-lg text-sm font-bold transition-colors ${filterLevel === "0" ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-              >
-                승인 대기 (미승인)
+                <X size={20} />
               </button>
             </div>
-
-            <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto">
-              <select value={searchType} onChange={(e) => setSearchType(e.target.value)} className="border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-indigo-500 w-28">
-                <option value="loginId">아이디</option>
-                <option value="name">이름</option>
-              </select>
-              <input type="text" placeholder="검색어 입력..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="flex-1 md:w-48 border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-indigo-500" />
-              <button type="submit" className="bg-slate-800 text-white px-4 rounded-lg flex items-center gap-2">
-                <Search size={16} /> 검색
-              </button>
-            </form>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
-            {isLoading && (
-              <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-sm flex items-center justify-center">
-                <Loader2 className="animate-spin text-indigo-600" size={32} />
-              </div>
-            )}
-
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="p-4 font-bold text-center w-16">ID</th>
-                  <th className="p-4 font-bold">아이디(로그인)</th>
-                  <th className="p-4 font-bold">이름/닉네임</th>
-                  <th className="p-4 font-bold">등급(권한)</th>
-                  <th className="p-4 font-bold">가입일</th>
-                  <th className="p-4 font-bold text-center w-36">관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {members.length > 0 ? members.map(m => (
-                  <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="p-4 text-center text-slate-500">{m.id}</td>
-                    <td className="p-4 font-bold text-slate-800">{m.loginId}</td>
-                    <td className="p-4">
-                      <div className="font-medium flex items-center gap-2">
-                        {m.name}
-                        {m.approvalFileUrl && (
-                          <a href={m.approvalFileUrl} target="_blank" rel="noreferrer" title="승인 서류 보기" className="text-indigo-500 hover:text-indigo-700">
-                            <FileText size={14} />
-                          </a>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-400">{m.nickname || '-'}</div>
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                        m.level === 0 ? 'bg-amber-100 text-amber-700' :
-                        m.level >= 9 ? 'bg-rose-100 text-rose-700' : 'bg-indigo-50 text-indigo-700'
-                      }`}>
-                        LV.{m.level} {LEVEL_NAMES[m.level] || "알수없음"}
-                      </span>
-                    </td>
-                    <td className="p-4 text-xs text-slate-500">
-                      {new Date(m.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="p-4 text-center">
-                      {m.level === 0 && (
-                        <button onClick={() => handleApprove(m.id)} className="text-emerald-500 hover:text-emerald-700 mr-3 transition-colors" title="가입 승인">
-                          <CheckCircle size={18}/>
-                        </button>
-                      )}
-                      <button onClick={() => { setFormData({ ...m, password: "" }); setViewMode("FORM"); }} className="text-indigo-600 hover:text-indigo-800 mr-3 transition-colors" title="수정">
-                        <Edit2 size={16}/>
-                      </button>
-                      <button onClick={() => handleDelete(m.id, m.level)} className="text-red-400 hover:text-red-600 transition-colors" title="삭제">
-                        <Trash2 size={16}/>
-                      </button>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan={6} className="p-12 text-center text-slate-500">
-                      일치하는 회원 정보가 없습니다.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
-            {totalPages > 1 && (
-              <div className="p-4 border-t border-slate-100 flex justify-center gap-2">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                  <button
-                    key={p}
-                    onClick={() => fetchMembers(p)}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${
-                      p === page ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div ref={postcodeRef} className="w-full h-[450px]"></div>
           </div>
         </div>
       )}
 
-      {viewMode === "FORM" && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-4">
-            <div className="bg-white p-3 rounded-full shadow-sm border border-slate-100">
-              <Users className="text-indigo-600" size={24} />
+      <div className="max-w-6xl mx-auto space-y-6 relative">
+        
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-900">회원 관리</h2>
+            <p className="text-sm text-slate-500 mt-1">가입된 회원 목록을 조회하고 정보 및 등급(권한)을 수정합니다.</p>
+          </div>
+          
+          {viewMode === "FORM" && (
+            <button 
+              onClick={() => { setViewMode("LIST"); setFormData(initialForm); }}
+              className="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm hover:bg-black transition"
+            >
+              <List size={16}/> 목록으로
+            </button>
+          )}
+        </div>
+
+        {viewMode === "LIST" && (
+          <div className="space-y-4">
+            
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex gap-2 w-full md:w-auto">
+                <button 
+                  onClick={() => { setFilterLevel("ALL"); fetchMembers(1, "ALL"); }}
+                  className={`px-5 py-2 rounded-lg text-sm font-bold transition-colors ${filterLevel === "ALL" ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  전체 회원
+                </button>
+                <button 
+                  onClick={() => { setFilterLevel("0"); fetchMembers(1, "0"); }}
+                  className={`px-5 py-2 rounded-lg text-sm font-bold transition-colors ${filterLevel === "0" ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  승인 대기 (미승인)
+                </button>
+              </div>
+
+              <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto">
+                <select value={searchType} onChange={(e) => setSearchType(e.target.value)} className="border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-indigo-500 w-28">
+                  <option value="loginId">아이디</option>
+                  <option value="name">이름</option>
+                </select>
+                <input type="text" placeholder="검색어 입력..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="flex-1 md:w-48 border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-indigo-500" />
+                <button type="submit" className="bg-slate-800 text-white px-4 rounded-lg flex items-center gap-2">
+                  <Search size={16} /> 검색
+                </button>
+              </form>
             </div>
-            <div>
-              <h3 className="font-bold text-slate-800">{formData.loginId}</h3>
-              <p className="text-xs text-slate-500">가입일: {new Date(formData.createdAt || Date.now()).toLocaleString()}</p>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
+              {isLoading && (
+                <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-sm flex items-center justify-center">
+                  <Loader2 className="animate-spin text-indigo-600" size={32} />
+                </div>
+              )}
+
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="p-4 font-bold text-center w-16">ID</th>
+                    <th className="p-4 font-bold">아이디(로그인)</th>
+                    <th className="p-4 font-bold">이름/닉네임</th>
+                    <th className="p-4 font-bold">등급(권한)</th>
+                    <th className="p-4 font-bold">가입일</th>
+                    <th className="p-4 font-bold text-center w-36">관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.length > 0 ? members.map(m => (
+                    <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                      <td className="p-4 text-center text-slate-500">{m.id}</td>
+                      <td className="p-4 font-bold text-slate-800">{m.loginId}</td>
+                      <td className="p-4">
+                        <div className="font-medium flex items-center gap-2">
+                          {m.name}
+                          {m.approvalFileUrl && (
+                            <a href={m.approvalFileUrl} target="_blank" rel="noreferrer" title="승인 서류 보기" className="text-indigo-500 hover:text-indigo-700">
+                              <FileText size={14} />
+                            </a>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-400">{m.nickname || '-'}</div>
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                          m.level === 0 ? 'bg-amber-100 text-amber-700' :
+                          m.level >= 9 ? 'bg-rose-100 text-rose-700' : 'bg-indigo-50 text-indigo-700'
+                        }`}>
+                          LV.{m.level} {LEVEL_NAMES[m.level] || "알수없음"}
+                        </span>
+                      </td>
+                      <td className="p-4 text-xs text-slate-500">
+                        {new Date(m.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="p-4 text-center">
+                        {m.level === 0 && (
+                          <button onClick={() => handleApprove(m.id)} className="text-emerald-500 hover:text-emerald-700 mr-3 transition-colors" title="가입 승인">
+                            <CheckCircle size={18}/>
+                          </button>
+                        )}
+                        <button onClick={() => { setFormData({ ...m, password: "" }); setViewMode("FORM"); }} className="text-indigo-600 hover:text-indigo-800 mr-3 transition-colors" title="수정">
+                          <Edit2 size={16}/>
+                        </button>
+                        <button onClick={() => handleDelete(m.id, m.level)} className="text-red-400 hover:text-red-600 transition-colors" title="삭제">
+                          <Trash2 size={16}/>
+                        </button>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={6} className="p-12 text-center text-slate-500">
+                        일치하는 회원 정보가 없습니다.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {totalPages > 1 && (
+                <div className="p-4 border-t border-slate-100 flex justify-center gap-2">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => fetchMembers(p)}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold transition-colors ${
+                        p === page ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
+        )}
 
-          <div className="grid grid-cols-2 gap-6">
-            
-            {/* 💡 settings에 따른 필드 조건부 렌더링 적용 */}
-            
-            {settings?.useName && (
-              <div>
-                <label className="block font-bold mb-1 text-slate-700">이름</label>
-                <input type="text" value={formData.name || ""} onChange={e => setFormData({...formData, name: e.target.value})} className={inputClass} />
+        {viewMode === "FORM" && (
+          <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-4">
+              <div className="bg-white p-3 rounded-full shadow-sm border border-slate-100">
+                <Users className="text-indigo-600" size={24} />
               </div>
-            )}
-            
-            {settings?.useNickname && (
               <div>
-                <label className="block font-bold mb-1 text-slate-700">닉네임</label>
-                <input type="text" value={formData.nickname || ""} onChange={e => setFormData({...formData, nickname: e.target.value})} className={inputClass} />
+                <h3 className="font-bold text-slate-800">{formData.loginId}</h3>
+                <p className="text-xs text-slate-500">가입일: {new Date(formData.createdAt || Date.now()).toLocaleString()}</p>
               </div>
-            )}
+            </div>
 
-            {settings?.usePhone && (
-              <div>
-                <label className="block font-bold mb-1 text-slate-700">유선 전화번호</label>
-                <input type="text" value={formData.phone || ""} onChange={e => setFormData({...formData, phone: e.target.value})} className={inputClass} />
-              </div>
-            )}
-            
-            {settings?.useMobile && (
-              <div>
-                <label className="block font-bold mb-1 text-slate-700">휴대폰 번호</label>
-                <input type="text" value={formData.mobile || ""} onChange={e => setFormData({...formData, mobile: e.target.value})} className={inputClass} />
-              </div>
-            )}
-
-            {settings?.useDob && (
-              <div>
-                <label className="block font-bold mb-1 text-slate-700">생년월일</label>
-                <input type="date" value={formData.dob || ""} onChange={e => setFormData({...formData, dob: e.target.value})} className={inputClass} />
-              </div>
-            )}
-
-            {/* 회사명(주로 조합원이나 특정 등급인 경우)은 데이터가 있을 때 노출하거나 항상 수정할 수 있게 배치 */}
-            {formData.companyName !== undefined && formData.companyName !== null && (
-              <div>
-                <label className="block font-bold mb-1 text-slate-700">기업명/소속</label>
-                <input type="text" value={formData.companyName || ""} onChange={e => setFormData({...formData, companyName: e.target.value})} className={inputClass} />
-              </div>
-            )}
-
-            {settings?.useAddress && (
-              <div className="col-span-2 space-y-2">
-                <label className="block font-bold mb-1 text-slate-700">주소</label>
-                <div className="flex gap-2">
-                  <input type="text" value={formData.postcode || ""} onChange={e => setFormData({...formData, postcode: e.target.value})} placeholder="우편번호" className={`${inputClass} w-32`} />
-                  <input type="text" value={formData.address || ""} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="기본 주소" className={`${inputClass} flex-1`} />
-                </div>
-                <input type="text" value={formData.address_detail || ""} onChange={e => setFormData({...formData, address_detail: e.target.value})} placeholder="상세 주소를 입력해주세요" className={inputClass} />
-              </div>
-            )}
-
-            <div className="col-span-2 border-t border-slate-100 pt-6 mt-2">
-              <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <Shield size={18} className="text-rose-500"/> 계정 보안 및 등급 관리
-              </h4>
-              <div className="grid grid-cols-2 gap-6 bg-slate-50 p-5 rounded-xl border border-slate-200">
-                
+            <div className="grid grid-cols-2 gap-6">
+              
+              {/* 💡 settings 상태를 적용한 조건부 렌더링 */}
+              
+              {settings?.useName && (
                 <div>
-                  <label className="block font-bold mb-1 text-slate-700">회원 등급(권한)</label>
-                  <select 
-                    value={formData.level} 
-                    onChange={e => setFormData({...formData, level: Number(e.target.value)})} 
-                    className={inputClass}
-                    disabled={formData.level === 10} 
-                  >
-                    {Object.entries(LEVEL_NAMES).map(([level, name]) => (
-                      <option key={level} value={level}>{name} (Level {level})</option>
-                    ))}
-                  </select>
-                  {formData.level === 10 && <p className="text-xs text-rose-500 mt-1">* 최고관리자 계정은 등급을 변경할 수 없습니다.</p>}
+                  <label className="block font-bold mb-1 text-slate-700">이름</label>
+                  <input type="text" value={formData.name || ""} onChange={e => setFormData({...formData, name: e.target.value})} className={inputClass} />
                 </div>
-
+              )}
+              
+              {settings?.useNickname && (
                 <div>
-                  <label className="block font-bold mb-1 text-slate-700">비밀번호 변경</label>
+                  <label className="block font-bold mb-1 text-slate-700">닉네임</label>
+                  <input type="text" value={formData.nickname || ""} onChange={e => setFormData({...formData, nickname: e.target.value})} className={inputClass} />
+                </div>
+              )}
+
+              {settings?.usePhone && (
+                <div>
+                  <label className="block font-bold mb-1 text-slate-700">유선 전화번호</label>
+                  <input type="text" value={formData.phone || ""} onChange={e => setFormData({...formData, phone: e.target.value})} className={inputClass} />
+                </div>
+              )}
+              
+              {settings?.useMobile && (
+                <div>
+                  <label className="block font-bold mb-1 text-slate-700">휴대폰 번호</label>
+                  <input type="text" value={formData.mobile || ""} onChange={e => setFormData({...formData, mobile: e.target.value})} className={inputClass} />
+                </div>
+              )}
+
+              {settings?.useDob && (
+                <div>
+                  <label className="block font-bold mb-1 text-slate-700">생년월일</label>
+                  <input type="date" value={formData.dob ? formData.dob.split('T')[0] : ""} onChange={e => setFormData({...formData, dob: e.target.value})} className={inputClass} />
+                </div>
+              )}
+
+              {formData.companyName !== undefined && formData.companyName !== null && formData.companyName !== "" && (
+                <div>
+                  <label className="block font-bold mb-1 text-slate-700">기업명/소속</label>
+                  <input type="text" value={formData.companyName || ""} onChange={e => setFormData({...formData, companyName: e.target.value})} className={inputClass} />
+                </div>
+              )}
+
+              {/* 주소 모달 연결 UI */}
+              {settings?.useAddress && (
+                <div className="col-span-2 space-y-2">
+                  <label className="block font-bold mb-1 text-slate-700">주소</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={formData.postcode || ""} 
+                      readOnly 
+                      placeholder="우편번호" 
+                      className={`${inputClass} w-32 bg-slate-100 cursor-not-allowed`} 
+                    />
+                    <button 
+                      type="button" 
+                      onClick={openPostcodeModal} 
+                      className="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg text-sm font-bold transition-colors whitespace-nowrap text-slate-700"
+                    >
+                      우편번호 검색
+                    </button>
+                  </div>
                   <input 
-                    type="password" 
-                    value={formData.password || ""} 
-                    onChange={e => setFormData({...formData, password: e.target.value})} 
-                    placeholder="변경 시에만 입력하세요." 
+                    type="text" 
+                    value={formData.address || ""} 
+                    readOnly 
+                    placeholder="기본 주소" 
+                    className={`${inputClass} bg-slate-100 cursor-not-allowed`} 
+                  />
+                  <input 
+                    type="text" 
+                    name="address_detail"
+                    value={formData.address_detail || ""} 
+                    onChange={e => setFormData({...formData, address_detail: e.target.value})} 
+                    placeholder="상세 주소를 입력해주세요" 
                     className={inputClass} 
                   />
-                  <p className="text-xs text-slate-500 mt-1">* 입력하지 않으면 기존 비밀번호가 유지됩니다.</p>
                 </div>
+              )}
 
+              <div className="col-span-2 border-t border-slate-100 pt-6 mt-2">
+                <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <Shield size={18} className="text-rose-500"/> 계정 보안 및 등급 관리
+                </h4>
+                <div className="grid grid-cols-2 gap-6 bg-slate-50 p-5 rounded-xl border border-slate-200">
+                  
+                  <div>
+                    <label className="block font-bold mb-1 text-slate-700">회원 등급(권한)</label>
+                    <select 
+                      value={formData.level} 
+                      onChange={e => setFormData({...formData, level: Number(e.target.value)})} 
+                      className={inputClass}
+                      disabled={formData.level === 10} 
+                    >
+                      {Object.entries(LEVEL_NAMES).map(([level, name]) => (
+                        <option key={level} value={level}>{name} (Level {level})</option>
+                      ))}
+                    </select>
+                    {formData.level === 10 && <p className="text-xs text-rose-500 mt-1">* 최고관리자 계정은 등급을 변경할 수 없습니다.</p>}
+                  </div>
+
+                  <div>
+                    <label className="block font-bold mb-1 text-slate-700">비밀번호 변경</label>
+                    <input 
+                      type="password" 
+                      value={formData.password || ""} 
+                      onChange={e => setFormData({...formData, password: e.target.value})} 
+                      placeholder="변경 시에만 입력하세요." 
+                      className={inputClass} 
+                    />
+                    <p className="text-xs text-slate-500 mt-1">* 입력하지 않으면 기존 비밀번호가 유지됩니다.</p>
+                  </div>
+
+                </div>
               </div>
+
             </div>
 
-          </div>
-
-          <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200">
-            회원 정보 수정하기
-          </button>
-        </form>
-      )}
-    </div>
+            <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200">
+              회원 정보 수정하기
+            </button>
+          </form>
+        )}
+      </div>
+    </>
   );
 }
