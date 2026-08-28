@@ -90,7 +90,7 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
       localStorage.removeItem("user");
       window.location.href = "/login";
     }
-  }, []);
+  }, [pathname]);
 
   // 페이지 이동 시, 현재 경로가 포함된 아코디언 메뉴를 자동으로 열어줌
   useEffect(() => {
