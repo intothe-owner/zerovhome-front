@@ -62,9 +62,35 @@ const MENU_GROUPS = [
 
 export default function AdminLayoutUI({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); 
-  
-  const adminInfo = { name: "최고관리자", level: 10 };
+  const [isAuthorized, setIsAuthorized] = useState(false);
+   const [adminInfo, setAdminInfo] = useState({ name: "", level: 0 });
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const userStr = localStorage.getItem("user");
+
+    if (!token || !userStr) {
+      alert("관리자 페이지입니다. 먼저 로그인해 주세요.");
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      const user = JSON.parse(userStr);
+      if (user.level < 9) {
+        alert("관리자 페이지에 접근할 권한이 없습니다.");
+        window.location.href = "/";
+        return;
+      }
+      setAdminInfo({ name: user.name, level: user.level });
+      setIsAuthorized(true);
+    } catch (e) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    }
+  }, []);
 
   // 페이지 이동 시, 현재 경로가 포함된 아코디언 메뉴를 자동으로 열어줌
   useEffect(() => {
@@ -77,7 +103,11 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
   }, [pathname]);
 
   const handleLogout = () => {
-    alert("로그아웃 버튼 클릭 (UI 테스트)");
+    if (confirm("로그아웃 하시겠습니까?")) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/";
+    }
   };
 
   const toggleGroup = (id: string) => {
