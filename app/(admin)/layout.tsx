@@ -8,7 +8,8 @@ import {
   Settings, Users, UserCheck, Menu as MenuIcon, 
   FileText, MessageSquare, LogOut, UserCircle, Megaphone,
   BarChart2, Briefcase, ChevronDown, ChevronRight,
-  ClipboardList, Sparkles, Home, UserPlus, CalendarDays, FolderTree // 💡 캘린더 및 카테고리 아이콘 추가
+  ClipboardList, Sparkles, Home, UserPlus, CalendarDays, FolderTree, // 💡 캘린더 및 카테고리 아이콘 추가
+  Award
 } from "lucide-react";
 
 // 💡 '신청 내역' 및 '서비스 관리' 메뉴 그룹 확장
@@ -47,6 +48,7 @@ const MENU_GROUPS = [
       { name: "메뉴 관리", href: "/admin/menus", icon: MenuIcon },
       { name: "페이지 관리", href: "/admin/pages", icon: FileText },
       { name: "게시판 관리", href: "/admin/boards", icon: MessageSquare },
+      { name: "인허가증 관리", href: "/admin/certification", icon: Award },
       { name: "팝업 관리", href: "/admin/popup", icon: Megaphone },
     ]
   },
