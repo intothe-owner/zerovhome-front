@@ -1,11 +1,11 @@
 // src/app/register/RegisterForm.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2, X } from "lucide-react"; // 💡 X 아이콘 추가
 import { useMutation } from "@tanstack/react-query";
-import Script from "next/script"; // 💡 다음 우편번호 API 로드를 위해 추가
+import Script from "next/script";
 
 interface RegisterFormProps {
   settings: any;
@@ -29,7 +29,6 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
     phone: "",
     dob: "",
     companyName: "",
-    // 💡 주소 관련 필드 추가
     postcode: "",
     address: "",
     address_detail: "",
@@ -38,6 +37,10 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
   const [approvalFile, setApprovalFile] = useState<File | null>(null);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreePrivacy, setAgreePrivacy] = useState(false);
+
+  // 💡 우편번호 모달 상태 및 Ref 추가
+  const [isPostcodeModalOpen, setIsPostcodeModalOpen] = useState(false);
+  const postcodeRef = useRef<HTMLDivElement>(null);
 
   const clearMessages = () => {
     setErrorMessage("");
@@ -63,31 +66,41 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
     setMemberType(type);
   };
 
-  // 💡 다음 우편번호 검색 팝업 열기
-  const openPostcode = () => {
+  // 💡 다음 우편번호 검색 (모달창 열기)
+  const openPostcodeModal = () => {
     if (typeof window === "undefined" || !(window as any).daum) {
       setErrorMessage("우편번호 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
       return;
     }
-
-    new (window as any).daum.Postcode({
-      oncomplete: (data: any) => {
-        // 검색 결과 항목을 클릭했을때 실행할 코드를 작성하는 부분.
-        setFormData((prev) => ({
-          ...prev,
-          postcode: data.zonecode, // 우편번호 (5자리)
-          address: data.address, // 기본 주소
-        }));
-        clearMessages();
-        
-        // 상세주소 입력 칸으로 포커스를 이동하기 위한 로직 추가 가능
-        const detailInput = document.querySelector('input[name="address_detail"]') as HTMLInputElement;
-        if (detailInput) {
-          detailInput.focus();
-        }
-      },
-    }).open();
+    setIsPostcodeModalOpen(true);
   };
+
+  // 💡 모달이 열리면 Daum Postcode를 지정된 div(postcodeRef)에 렌더링(embed)합니다.
+  useEffect(() => {
+    if (isPostcodeModalOpen && postcodeRef.current && (window as any).daum) {
+      new (window as any).daum.Postcode({
+        oncomplete: (data: any) => {
+          setFormData((prev) => ({
+            ...prev,
+            postcode: data.zonecode, // 우편번호 (5자리)
+            address: data.address, // 기본 주소
+          }));
+          clearMessages();
+          setIsPostcodeModalOpen(false); // 선택 후 모달 닫기
+          
+          // 모달이 닫힌 후 상세주소 입력 칸으로 포커스 이동 (약간의 지연 필요)
+          setTimeout(() => {
+            const detailInput = document.querySelector('input[name="address_detail"]') as HTMLInputElement;
+            if (detailInput) {
+              detailInput.focus();
+            }
+          }, 100);
+        },
+        width: '100%',
+        height: '100%'
+      }).embed(postcodeRef.current);
+    }
+  }, [isPostcodeModalOpen]);
 
   const registerMutation = useMutation({
     mutationFn: async (submitData: FormData) => {
@@ -151,7 +164,6 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
     if (settings?.usePhone) submitData.append("phone", formData.phone);
     if (settings?.useDob) submitData.append("dob", formData.dob);
     
-    // 💡 주소 데이터 Append 추가
     if (settings?.useAddress) {
       submitData.append("postcode", formData.postcode);
       submitData.append("address", formData.address);
@@ -177,33 +189,32 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
 
   return (
     <>
-      {/* 💡 다음 우편번호 API 스크립트 로드 */}
       <Script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" strategy="lazyOnload" />
+
+      {/* 💡 우편번호 검색 모달창 UI */}
+      {isPostcodeModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col transform transition-all">
+            {/* 모달 헤더 */}
+            <div className="flex justify-between items-center p-4 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="font-bold text-lg text-slate-800 dark:text-white">우편번호 찾기</h3>
+              <button 
+                type="button" 
+                onClick={() => setIsPostcodeModalOpen(false)} 
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {/* 모달 내용 (Daum API 타겟) */}
+            <div ref={postcodeRef} className="w-full h-[450px]"></div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-xl mb-6">
-          {/* <button
-            type="button"
-            className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${
-              memberType === "NORMAL"
-                ? "bg-white dark:bg-slate-800 shadow text-indigo-600 dark:text-indigo-400"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-            onClick={() => handleTypeChange("NORMAL")}
-          >
-            일반 회원
-          </button> */}
-          {/* <button
-            type="button"
-            className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${
-              memberType === "UNION"
-                ? "bg-white dark:bg-slate-800 shadow text-indigo-600 dark:text-indigo-400"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-            onClick={() => handleTypeChange("UNION")}
-          >
-            조합원회원
-          </button> */}
+          {/* 회원 타입 탭 버튼(현재 주석처리됨) */}
         </div>
 
         {settings?.useEmailAsLoginId ? (
@@ -285,7 +296,7 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
           </div>
         )}
 
-        {/* 💡 주소 입력 폼 렌더링 */}
+        {/* 💡 주소 입력 폼 (모달 열기 버튼 연결) */}
         {settings?.useAddress && (
           <div className="space-y-3">
             <label className={labelClass}>주소 <span className="text-red-500">*</span></label>
@@ -301,7 +312,7 @@ export default function RegisterForm({ settings }: RegisterFormProps) {
               />
               <button 
                 type="button" 
-                onClick={openPostcode} 
+                onClick={openPostcodeModal} 
                 className="px-4 py-3 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap"
               >
                 우편번호 검색
