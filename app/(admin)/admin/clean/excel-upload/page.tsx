@@ -35,7 +35,7 @@ export default function AdminExcelUploadUI() {
   // React Query Mutation 설정
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      // API 경로: 백엔드 주소에 맞춰 수정이 필요할 수 있습니다 (예: process.env.NEXT_PUBLIC_API_URL + '/import/upload')
+      // API 경로: 백엔드 주소에 맞춰 수정이 필요할 수 있습니다 (예: process.env.NEXT_PUBLIC_API_BASE_URL + '/import/upload')
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/import/upload`, {
         method: "POST",
         body: formData,

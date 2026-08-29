@@ -27,7 +27,7 @@ export default function WorkSiteDetailPage() {
     const [listFields, setListFields] = useState<string[]>([]);
     const [detailFields, setDetailFields] = useState<string[]>([]);
 
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
     // 데이터 불러오기
     const fetchData = async () => {
