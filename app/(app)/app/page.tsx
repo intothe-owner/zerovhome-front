@@ -4,24 +4,55 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import axios from "axios"; // 💡 axios 추가 (API 호출용)
+
+// 💡 1. 예쁜 색상 조합을 배열로 미리 정의 (배경, 그림자, 호버, 텍스트 색상 포함)
+const BUTTON_COLORS = [
+  "bg-blue-600 shadow-blue-200 hover:bg-blue-700 text-blue-100",       // 블루
+  "bg-emerald-600 shadow-emerald-200 hover:bg-emerald-700 text-emerald-100", // 에메랄드
+  "bg-violet-600 shadow-violet-200 hover:bg-violet-700 text-violet-100",   // 바이올렛
+  "bg-rose-500 shadow-rose-200 hover:bg-rose-600 text-rose-100",       // 로즈
+  "bg-amber-500 shadow-amber-200 hover:bg-amber-600 text-amber-100",       // 앰버(주황)
+  "bg-cyan-600 shadow-cyan-200 hover:bg-cyan-700 text-cyan-100",       // 시안(청록)
+];
 
 const Home = () => {
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  
+  // 💡 현장(Site) 데이터를 담을 상태 추가
+  const [sites, setSites] = useState<any[]>([]);
+  const [isLoadingSites, setIsLoadingSites] = useState(true);
+
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
   useEffect(() => {
-    // 💡 컴포넌트 마운트 시 로컬 스토리지에서 토큰 확인
+    // 로컬 스토리지에서 토큰 확인
     const token = localStorage.getItem("token");
 
     if (!token) {
       // 토큰이 없으면 로그인 페이지로 리다이렉트
-      // 웹뷰에서 안드로이드 뒤로가기 버튼(백스택) 꼬임을 방지하기 위해 replace 사용
       router.replace("/app/login");
     } else {
-      // 토큰이 있으면 인증 확인 상태 해제 후 화면 렌더링
+      // 토큰이 있으면 인증 확인 상태 해제 후 현장 목록 호출
       setIsCheckingAuth(false);
+      fetchSites();
     }
   }, [router]);
+
+  // 💡 2. 현장 목록을 불러오는 API 함수
+  const fetchSites = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/work-sites`);
+      if (res.data.ok) {
+        setSites(res.data.data);
+      }
+    } catch (err) {
+      console.error("현장 목록 조회 실패:", err);
+    } finally {
+      setIsLoadingSites(false);
+    }
+  };
 
   // 인증 확인 중일 때는 깜빡임(Flash) 방지를 위해 로딩 화면 표시
   if (isCheckingAuth) {
@@ -46,25 +77,39 @@ const Home = () => {
 
       {/* 버튼 영역 */}
       <div className="w-full max-w-md space-y-4">
-        <Link 
-          href="/app/clean"
-          className="flex flex-col items-center justify-center w-full rounded-2xl bg-blue-600 p-8 shadow-lg shadow-blue-200 transition-all active:scale-95 hover:bg-blue-700"
-        >
-          <span className="text-xl font-black text-white">클린UP 사업</span>
-          <span className="mt-1 text-sm font-medium text-blue-100">
-            취약계층 주거환경 개선
-          </span>
-        </Link>
-
-        <Link 
-          href="/app/senior"
-          className="flex flex-col items-center justify-center w-full rounded-2xl bg-emerald-600 p-8 shadow-lg shadow-emerald-200 transition-all active:scale-95 hover:bg-emerald-700"
-        >
-          <span className="text-xl font-black text-white">경로당 사업</span>
-          <span className="mt-1 text-sm font-medium text-emerald-100">
-            냉방기 및 공기청정기 클린UP
-          </span>
-        </Link>
+        {isLoadingSites ? (
+          // 현장 목록 로딩 중
+          <div className="flex justify-center py-10">
+            <Loader2 className="animate-spin text-gray-400" size={28} />
+          </div>
+        ) : sites.length === 0 ? (
+          // 등록된 현장이 없을 때
+          <div className="text-center py-10 text-gray-400 font-medium bg-white rounded-2xl border border-gray-200">
+            등록된 현장이 없습니다.
+          </div>
+        ) : (
+          // 💡 3. API로 불러온 현장 목록을 매핑하여 버튼 렌더링
+          sites.map((site, index) => {
+            // 버튼 색상을 배열 길이로 나누어 순환 적용 (예: 7번째 현장은 다시 1번째 색상 적용)
+            const colorClass = BUTTON_COLORS[index % BUTTON_COLORS.length];
+            
+            return (
+              <Link 
+                key={site.id}
+                href={`/app/works/${site.id}`} // ⚠️ 실제 현장 클릭 시 넘어갈 경로에 맞춰 수정해 주세요. (예: /app/works/[id])
+                className={`flex flex-col items-center justify-center w-full rounded-2xl p-8 shadow-lg transition-all active:scale-95 ${colorClass}`}
+              >
+                <span className="text-xl font-black text-white">{site.title}</span>
+                {/* 현장 설명(부제목)이 있다면 노출 */}
+                {site.description && (
+                  <span className="mt-1 text-sm font-medium opacity-90">
+                    {site.description}
+                  </span>
+                )}
+              </Link>
+            );
+          })
+        )}
       </div>
     </div>
   );

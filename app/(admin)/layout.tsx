@@ -8,11 +8,11 @@ import {
   Settings, Users, UserCheck, Menu as MenuIcon, 
   FileText, MessageSquare, LogOut, UserCircle, Megaphone,
   BarChart2, Briefcase, ChevronDown, ChevronRight,
-  ClipboardList, Sparkles, Home, UserPlus, CalendarDays, FolderTree, // 💡 캘린더 및 카테고리 아이콘 추가
-  Award
+  ClipboardList, Sparkles, Home, UserPlus, CalendarDays, FolderTree,
+  Award,
+  FolderKanban, ListChecks, FileSpreadsheet
 } from "lucide-react";
 
-// 💡 '신청 내역' 및 '서비스 관리' 메뉴 그룹 확장
 const MENU_GROUPS = [
   {
     id: "settings",
@@ -23,8 +23,17 @@ const MENU_GROUPS = [
     ]
   },
   {
+    id: "works",
+    title: "통합 현장 관리",
+    items: [
+      { name: "현장 목록 및 생성", href: "/admin/works", icon: FolderKanban },
+      { name: "전체 작업 현황", href: "/admin/works/items", icon: ListChecks },
+      { name: "보고서 및 설문 결과", href: "/admin/works/reports", icon: FileSpreadsheet },
+    ]
+  },
+  {
     id: "service",
-    title: "서비스 관리", // 💡 새로 추가된 그룹 (예약 및 카테고리)
+    title: "서비스 관리",
     items: [
       { name: "예약/견적 관리", href: "/admin/service/reservations", icon: CalendarDays },
       { name: "카테고리 관리", href: "/admin/service/category", icon: FolderTree },
@@ -94,10 +103,15 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
     }
   }, [pathname]);
 
-  // 페이지 이동 시, 현재 경로가 포함된 아코디언 메뉴를 자동으로 열어줌
   useEffect(() => {
     const activeGroup = MENU_GROUPS.find(group => 
-      group.items.some(item => pathname === item.href || pathname.startsWith(`${item.href}/`))
+      group.items.some(item => {
+        // 아코디언 그룹 오픈 판정 시에도 정확한 경로 분기 반영
+        if (item.href === "/admin/works") {
+          return pathname === "/admin/works" || pathname.startsWith("/admin/works/[");
+        }
+        return pathname === item.href || pathname.startsWith(`${item.href}/`);
+      })
     );
     if (activeGroup) {
       setOpenGroups(prev => ({ ...prev, [activeGroup.id]: true }));
@@ -145,7 +159,15 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
 
                 <div className={`space-y-1 overflow-hidden transition-all duration-300 ${isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
                   {group.items.map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    // 💡 활성화(isActive) 조건 정밀 제어
+                    // '/admin/works'는 하위 메뉴인 '/admin/works/items', '/admin/works/reports'와 독립되도록 처리
+                    let isActive = false;
+                    if (item.href === "/admin/works") {
+                      // 현장 목록 페이지이거나 현장 상세 페이지([id])일 때만 활성화 (items나 reports 등은 제외)
+                      isActive = pathname === "/admin/works" || /^\/admin\/works\/\d+$/.test(pathname);
+                    } else {
+                      isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    }
                     
                     return (
                       <Link 
