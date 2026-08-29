@@ -16,17 +16,34 @@ export default function WorkItemMonitorPage() {
             "Authorization": `Bearer ${cleanToken}`
         };
     };
+    
     const [items, setItems] = useState<any[]>([]);
     const [sites, setSites] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
-    // 💡 세션 스토리지에서 이전 필터 상태 복원 (없으면 기본값)
-    const [selectedSite, setSelectedSite] = useState<string>(() => sessionStorage.getItem("work_selectedSite") || "");
-    const [selectedStatus, setSelectedStatus] = useState<string>(() => sessionStorage.getItem("work_selectedStatus") || "");
-    const [keywordInput, setKeywordInput] = useState<string>(() => sessionStorage.getItem("work_keyword") || "");
-    const [keyword, setKeyword] = useState<string>(() => sessionStorage.getItem("work_keyword") || "");
+    // 💡 에러 해결: 서버사이드 렌더링(SSR) 시 빌드 에러 방지를 위해 window 객체 존재 여부 체크
+    const [selectedSite, setSelectedSite] = useState<string>(() => {
+        if (typeof window !== "undefined") return sessionStorage.getItem("work_selectedSite") || "";
+        return "";
+    });
+    const [selectedStatus, setSelectedStatus] = useState<string>(() => {
+        if (typeof window !== "undefined") return sessionStorage.getItem("work_selectedStatus") || "";
+        return "";
+    });
+    const [keywordInput, setKeywordInput] = useState<string>(() => {
+        if (typeof window !== "undefined") return sessionStorage.getItem("work_keyword") || "";
+        return "";
+    });
+    const [keyword, setKeyword] = useState<string>(() => {
+        if (typeof window !== "undefined") return sessionStorage.getItem("work_keyword") || "";
+        return "";
+    });
 
-    const [page, setPage] = useState<number>(() => Number(sessionStorage.getItem("work_page")) || 1);
+    const [page, setPage] = useState<number>(() => {
+        if (typeof window !== "undefined") return Number(sessionStorage.getItem("work_page")) || 1;
+        return 1;
+    });
+    
     const [totalPages, setTotalPages] = useState<number>(1);
     const [totalCount, setTotalCount] = useState<number>(0);
     const pageSize = 20;
@@ -365,7 +382,6 @@ export default function WorkItemMonitorPage() {
                                                     onClick={() => router.push(`/admin/works/items/${item.id}`)}
                                                 >
                                                     <div className="flex flex-col gap-0.5">
-                                                        {/* 첫 번째 필드(예: 고객명 또는 장소명) 아래에 담당자 이름 배치 */}
                                                         <span>{item.rowData?.[field] ?? "-"}</span>
                                                         {idx === 0 && (
                                                             <span className="text-xs font-normal">
@@ -473,7 +489,6 @@ export default function WorkItemMonitorPage() {
                                 <p className="text-sm text-center text-slate-400 py-6">검색된 회원이 없습니다.</p>
                             ) : (
                                 filteredMembers.map((member) => {
-                                    // 화면에 표시할 이름 조합 (기업명이 있으면 함께 표시)
                                     const displayName = member.companyName
                                         ? `${member.name} (${member.companyName})`
                                         : member.name || member.loginId;
@@ -487,7 +502,6 @@ export default function WorkItemMonitorPage() {
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-sm">{displayName}</span>
-                                                {/* 레벨이나 이메일을 보조 정보로 표시하면 좋습니다 */}
                                                 <span className="text-xs text-slate-400 font-normal">{member.loginId}</span>
                                             </div>
                                             <span className="text-xs text-indigo-600 font-bold bg-indigo-50 px-2.5 py-1 rounded-lg shrink-0">선택</span>
