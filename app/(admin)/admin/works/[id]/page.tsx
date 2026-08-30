@@ -23,9 +23,10 @@ export default function WorkSiteDetailPage() {
     const [isFetching, setIsFetching] = useState(true);
     const [saveLoading, setSaveLoading] = useState(false);
 
-    // 동적 노출 필드 상태 (엑셀 헤더 기준)
+    // 💡 동적 노출 필드 상태 (웹 목록, 웹 상세, 모바일 목록)
     const [listFields, setListFields] = useState<string[]>([]);
     const [detailFields, setDetailFields] = useState<string[]>([]);
+    const [mobileFields, setMobileFields] = useState<string[]>([]);
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
@@ -41,6 +42,7 @@ export default function WorkSiteDetailPage() {
                 setSiteInfo(currentSite);
                 setListFields(currentSite.listVisibleFields || []);
                 setDetailFields(currentSite.detailVisibleFields || []);
+                setMobileFields(currentSite.mobileListVisibleFields || []); // 💡 모바일 필드 복원
             }
 
             // 2. 파싱된 작업 항목 리스트 조회
@@ -85,22 +87,25 @@ export default function WorkSiteDetailPage() {
         }
     };
 
-    // 노출 필드 토글 핸들러
-    const toggleField = (type: "list" | "detail", field: string) => {
+    // 💡 노출 필드 토글 핸들러 (모바일용 추가)
+    const toggleField = (type: "list" | "detail" | "mobile", field: string) => {
         if (type === "list") {
             setListFields(prev => prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]);
-        } else {
+        } else if (type === "detail") {
             setDetailFields(prev => prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]);
+        } else if (type === "mobile") {
+            setMobileFields(prev => prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]);
         }
     };
 
-    // 설정 저장 처리 (노출 항목 업데이트)
+    // 💡 설정 저장 처리 (모바일 항목 같이 전송)
     const handleSaveFields = async () => {
         try {
             setSaveLoading(true);
             await axios.put(`${API_BASE_URL}/api/work-sites/${siteId}`, {
                 listVisibleFields: listFields,
-                detailVisibleFields: detailFields
+                detailVisibleFields: detailFields,
+                mobileListVisibleFields: mobileFields
             });
             alert("노출 항목 설정이 저장되었습니다.");
             fetchData();
@@ -130,7 +135,6 @@ export default function WorkSiteDetailPage() {
                     </div>
                 </div>
 
-                {/* 💡 설문조사 및 보고서 폼 설정 이동 버튼 영역 */}
                 <div className="flex items-center gap-3">
                     <Link
                         href={`/admin/works/${siteId}/survey`}
@@ -201,7 +205,7 @@ export default function WorkSiteDetailPage() {
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                                 <TableProperties size={20} className="text-emerald-600" />
-                                앱 노출 항목 설정
+                                앱/웹 노출 항목 설정
                             </h3>
                             <button
                                 onClick={handleSaveFields}
@@ -217,31 +221,44 @@ export default function WorkSiteDetailPage() {
                                 엑셀을 먼저 업로드하면 항목을 설정할 수 있습니다.
                             </p>
                         ) : (
-                            <div className="space-y-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar-dark">
-                                <p className="text-xs text-slate-400 mb-2 font-medium leading-relaxed">
-                                    작업자 앱의 <b className="text-slate-600">목록</b>과 <b className="text-slate-600">상세화면</b>에 보여줄 엑셀 컬럼을 선택하세요.
+                            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar-dark">
+                                <p className="text-xs text-slate-500 mb-2 font-medium leading-relaxed bg-slate-50 p-3 rounded-lg">
+                                    <b className="text-blue-600">웹(PC) 목록/상세</b> 및 <b className="text-orange-500">모바일 앱 목록</b>에 보여줄 엑셀 컬럼을 각각 선택하세요. <br/>
+                                    (※ 모바일 앱은 경로당명, 주소, 동명이 기본 노출되므로 그 외 추가 정보만 체크하세요)
                                 </p>
                                 {siteInfo.excelHeaders.map((header: string) => (
-                                    <div key={header} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                        <span className="font-bold text-slate-700 text-sm truncate w-1/2">{header}</span>
-                                        <div className="flex items-center gap-3 w-1/2 justify-end">
-                                            <label className="flex items-center gap-1 text-xs font-semibold cursor-pointer text-slate-600 hover:text-indigo-600">
+                                    <div key={header} className="flex flex-col gap-2 p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition">
+                                        <span className="font-bold text-slate-700 text-sm truncate">{header}</span>
+                                        <div className="flex items-center gap-4 justify-start pl-1">
+                                            {/* 웹 목록 */}
+                                            <label className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer text-slate-600 hover:text-indigo-600">
                                                 <input
                                                     type="checkbox"
                                                     checked={listFields.includes(header)}
                                                     onChange={() => toggleField("list", header)}
                                                     className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                                                 />
-                                                목록
+                                                웹 목록
                                             </label>
-                                            <label className="flex items-center gap-1 text-xs font-semibold cursor-pointer text-slate-600 hover:text-emerald-600">
+                                            {/* 웹 상세 */}
+                                            <label className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer text-slate-600 hover:text-emerald-600">
                                                 <input
                                                     type="checkbox"
                                                     checked={detailFields.includes(header)}
                                                     onChange={() => toggleField("detail", header)}
                                                     className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
                                                 />
-                                                상세
+                                                웹 상세
+                                            </label>
+                                            {/* 모바일 목록 (신규) */}
+                                            <label className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer text-slate-600 hover:text-orange-500">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={mobileFields.includes(header)}
+                                                    onChange={() => toggleField("mobile", header)}
+                                                    className="w-4 h-4 rounded text-orange-500 focus:ring-orange-500 border-slate-300"
+                                                />
+                                                모바일
                                             </label>
                                         </div>
                                     </div>
@@ -261,7 +278,7 @@ export default function WorkSiteDetailPage() {
                             </h3>
                         </div>
 
-                        <div className="flex-1 overflow-auto p-0">
+                        <div className="flex-1 overflow-auto p-0 max-h-[800px]">
                             <table className="w-full text-left border-collapse">
                                 <thead className="sticky top-0 bg-white shadow-sm z-10">
                                     <tr className="border-b border-slate-200 text-sm font-semibold text-slate-500">
@@ -275,7 +292,7 @@ export default function WorkSiteDetailPage() {
                                     {items.length === 0 ? (
                                         <tr>
                                             <td colSpan={4} className="p-12 text-center text-slate-400">
-                                                우측 상단에서 엑셀 파일을 업로드해주세요.
+                                                좌측에서 엑셀 파일을 업로드해주세요.
                                             </td>
                                         </tr>
                                     ) : (
