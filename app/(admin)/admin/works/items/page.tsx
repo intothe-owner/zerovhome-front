@@ -21,6 +21,9 @@ export default function WorkItemMonitorPage() {
     const [sites, setSites] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
+    // 💡 현장별 전체 작업자 배정 건수를 저장하는 상태 (ex: { "1": 15, "UNASSIGNED": 5 })
+    const [assigneeCounts, setAssigneeCounts] = useState<Record<string, number>>({});
+
     const [selectedSite, setSelectedSite] = useState<string>(() => {
         if (typeof window !== "undefined") return sessionStorage.getItem("work_selectedSite") || "";
         return "";
@@ -30,7 +33,6 @@ export default function WorkItemMonitorPage() {
         return "";
     });
     
-    // 💡 작업자 필터 상태 추가
     const [selectedMember, setSelectedMember] = useState<string>(() => {
         if (typeof window !== "undefined") return sessionStorage.getItem("work_selectedMember") || "";
         return "";
@@ -92,7 +94,37 @@ export default function WorkItemMonitorPage() {
         fetchMembers();
     }, []);
 
-    // 💡 sessionStorage에 작업자 상태도 저장
+    // 💡 선택된 현장의 전체 작업 목록을 가져와서 작업자별 건수 카운트 계산
+    const fetchAssigneeCounts = async (siteId: string) => {
+        if (!siteId) {
+            setAssigneeCounts({});
+            return;
+        }
+        try {
+            // pageSize를 크게 잡아 해당 현장의 전체 데이터를 가져와 통계를 냄
+            const res = await axios.get(`${API_BASE_URL}/api/work-items?workSiteId=${siteId}&pageSize=10000`);
+            if (res.data.ok) {
+                const allItems = res.data.data || [];
+                const counts: Record<string, number> = {};
+                allItems.forEach((item: any) => {
+                    const memberId = item.assignedMemberId ? String(item.assignedMemberId) : "UNASSIGNED";
+                    counts[memberId] = (counts[memberId] || 0) + 1;
+                });
+                setAssigneeCounts(counts);
+            }
+        } catch (err) {
+            console.error("작업자별 통계 조회 실패:", err);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedSite) {
+            fetchAssigneeCounts(selectedSite);
+        } else {
+            setAssigneeCounts({});
+        }
+    }, [selectedSite]);
+
     useEffect(() => {
         sessionStorage.setItem("work_selectedSite", selectedSite);
         sessionStorage.setItem("work_selectedStatus", selectedStatus);
@@ -122,7 +154,6 @@ export default function WorkItemMonitorPage() {
             if (selectedStatus) query.push(`status=${selectedStatus}`);
             if (keyword) query.push(`keyword=${encodeURIComponent(keyword)}`);
             
-            // 💡 작업자 필터링 파라미터 추가
             if (selectedMember) {
                 if (selectedMember === "UNASSIGNED") {
                     query.push(`workerName=미배정`);
@@ -146,7 +177,6 @@ export default function WorkItemMonitorPage() {
         }
     };
 
-    // 💡 selectedMember가 변경될 때도 API를 다시 호출하도록 의존성 배열에 추가
     useEffect(() => {
         fetchItems();
     }, [selectedSite, selectedStatus, selectedMember, keyword, page, sites]);
@@ -183,6 +213,7 @@ export default function WorkItemMonitorPage() {
                 setAssignKeyword("");
                 setSelectedItemIds([]);
                 fetchItems(); 
+                fetchAssigneeCounts(selectedSite); // 통계 갱신
             } else {
                 alert("작업자 배정에 실패했습니다.");
             }
@@ -196,6 +227,7 @@ export default function WorkItemMonitorPage() {
 
     const handleSiteChange = (val: string) => {
         setSelectedSite(val);
+        setSelectedMember(""); // 현장 변경 시 작업자 필터 초기화
         setPage(1);
     };
 
@@ -296,8 +328,8 @@ export default function WorkItemMonitorPage() {
                     </select>
                 </div>
 
-                {/* 💡 작업자 필터 영역 추가 */}
-                <div className="w-48">
+                {/* 💡 작업자 필터 영역 (이름(건수) 표시 적용) */}
+                <div className="w-56">
                     <label className="block text-sm font-semibold text-slate-600 mb-1">배정 작업자</label>
                     <select
                         value={selectedMember}
@@ -306,10 +338,17 @@ export default function WorkItemMonitorPage() {
                         className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 disabled:opacity-50"
                     >
                         <option value="">전체 작업자</option>
-                        <option value="UNASSIGNED">🔴 미배정만 보기</option>
+                        <option value="UNASSIGNED">
+                            🔴 미배정 ({assigneeCounts["UNASSIGNED"] || 0}건)
+                        </option>
                         {members.map(m => {
                             const displayName = m.companyName ? `${m.name} (${m.companyName})` : m.name || m.loginId;
-                            return <option key={m.id} value={m.id}>{displayName}</option>;
+                            const count = assigneeCounts[String(m.id)] || 0;
+                            return (
+                                <option key={m.id} value={m.id}>
+                                    {displayName} ({count}건)
+                                </option>
+                            );
                         })}
                     </select>
                 </div>
