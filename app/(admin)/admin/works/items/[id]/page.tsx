@@ -615,7 +615,7 @@ export default function WorkItemDetailPage() {
             {editImageTarget && (
                 <div className="fixed inset-0 z-[60] bg-black flex flex-col">
                     <FilerobotImageEditor
-                        source={editImageTarget.url}
+                        source={`${editImageTarget.url}?t=${Date.now()}`}
                         onSave={(editedImageObject, designState) =>
                             handleSaveEditedImage(editedImageObject)
                         }
