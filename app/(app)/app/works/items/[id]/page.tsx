@@ -618,20 +618,185 @@ export default function MobileWorkItemDetailPage() {
       {editImageTarget && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
           <FilerobotImageEditor
-            source={editImageTarget.url}
-            onSave={(editedImageObject, designState) => handleSaveEditedImage(editedImageObject)}
-            onClose={() => setEditImageTarget(null)}
-            annotationsCommon={{
-              fill: '#ff0000', // 기본 텍스트/그리기 색상
-            }}
-            Text={{ text: '이곳에 텍스트 입력...' }}
-            // 필요한 기능 탭 명시 (Adjust: 명도/채도/회전/크롭, Annotate: 텍스트/그리기, Filters: 필터, Finetune: 디테일 조정)
-            tabsIds={['Adjust', 'Annotate', 'Watermark', 'Filters', 'Finetune']} 
-            defaultTabId="Annotate"
-            defaultToolId="Text"
-            savingPixelRatio={1} // 저장 퀄리티 배율
-            previewPixelRatio={1}
-          />
+                        source={editImageTarget.url}
+                        onSave={(editedImageObject, designState) =>
+                            handleSaveEditedImage(editedImageObject)
+                        }
+                        onClose={() => setEditImageTarget(null)}
+
+                        annotationsCommon={{
+                            fill: "#ff0000",
+                        }}
+
+                        Text={{
+                            text: "이곳에 텍스트를 입력하세요",
+                        }}
+
+                        tabsIds={[
+                            "Adjust",
+                            "Annotate",
+                            "Watermark",
+                            "Filters",
+                            "Finetune",
+                        ]}
+                        defaultTabId="Annotate"
+                        defaultToolId="Text"
+
+                        savingPixelRatio={1}
+                        previewPixelRatio={1}
+
+                        /* 외부 번역 서버를 사용하지 않고 아래 번역을 사용 */
+                        useBackendTranslations={false}
+                        language="ko"
+
+                        theme={{
+                            typography: {
+                                fontFamily: '"Noto Sans KR", sans-serif',
+                            },
+                        }}
+
+                        translations={{
+                            /* 상단 공통 버튼 */
+                            name: "파일 이름",
+                            save: "저장",
+                            saveAs: "다른 이름으로 저장",
+                            back: "뒤로",
+                            loading: "불러오는 중...",
+                            cancel: "취소",
+                            apply: "적용",
+                            warning: "경고",
+                            confirm: "확인",
+                            discardChanges: "변경사항 삭제",
+
+                            /* 초기화 및 종료 경고 */
+                            resetOperations: "모든 편집 초기화",
+                            changesLoseWarningHint:
+                                "초기화하면 지금까지 편집한 내용이 삭제됩니다. 계속하시겠습니까?",
+                            discardChangesWarningHint:
+                                "편집 내용을 저장하지 않고 닫으시겠습니까?",
+
+                            /* 실행 취소 및 화면 조작 */
+                            undoTitle: "실행 취소",
+                            redoTitle: "다시 실행",
+                            showImageTitle: "원본 이미지 보기",
+                            zoomInTitle: "확대",
+                            zoomOutTitle: "축소",
+                            toggleZoomMenuTitle: "확대·축소 메뉴",
+
+                            /* 왼쪽 탭 메뉴 */
+                            adjustTab: "자르기·크기·회전",
+                            finetuneTab: "세부 조정",
+                            filtersTab: "필터",
+                            watermarkTab: "워터마크",
+                            annotateTabLabel: "그리기·텍스트",
+                            resizeTab: "크기 변경",
+                            resize: "크기 변경",
+
+                            /* 자르기 */
+                            cropTool: "자르기",
+                            original: "원본",
+                            custom: "사용자 지정",
+                            square: "정사각형",
+                            landscape: "가로형",
+                            portrait: "세로형",
+                            ellipse: "타원형",
+                            classicTv: "기본 화면",
+                            cinemascope: "와이드 화면",
+
+                            /* 그리기 도구 */
+                            arrowTool: "화살표",
+                            blurTool: "흐리게",
+                            ellipseTool: "타원",
+                            imageTool: "이미지",
+                            lineTool: "직선",
+                            penTool: "펜",
+                            polygonTool: "다각형",
+                            rectangleTool: "사각형",
+                            rotateTool: "회전",
+                            textTool: "텍스트",
+
+                            /* 세부 조정 도구 */
+                            brightnessTool: "밝기",
+                            contrastTool: "대비",
+                            warmthTool: "색온도",
+                            hsvTool: "색상 조정",
+                            hue: "색조",
+                            brightness: "밝기",
+                            saturation: "채도",
+                            value: "명도",
+
+                            /* 좌우·상하 반전 */
+                            flipX: "좌우 반전",
+                            unFlipX: "좌우 반전 해제",
+                            flipY: "상하 반전",
+                            unFlipY: "상하 반전 해제",
+
+                            /* 이미지 추가 */
+                            importing: "가져오는 중...",
+                            addImage: "+ 이미지 추가",
+                            uploadImage: "이미지 업로드",
+                            fromGallery: "갤러리에서 선택",
+                            addImageTitle: "추가할 이미지 선택",
+                            mutualizedFailedToLoadImg: "이미지를 불러오지 못했습니다.",
+
+                            /* 도형 설정 */
+                            sides: "면 개수",
+                            cornerRadius: "모서리 둥글기",
+                            stroke: "테두리",
+                            opacity: "불투명도",
+                            transparency: "투명도",
+                            position: "위치",
+                            shadow: "그림자",
+                            horizontal: "가로",
+                            vertical: "세로",
+                            blur: "흐림",
+
+                            /* 텍스트 설정 */
+                            textSpacings: "텍스트 간격",
+                            textAlignment: "텍스트 정렬",
+                            fontFamily: "글꼴",
+                            size: "크기",
+                            letterSpacing: "글자 간격",
+                            lineHeight: "줄 간격",
+
+                            /* 크기 조정 */
+                            resizeWidthTitle: "가로 크기(px)",
+                            resizeHeightTitle: "세로 크기(px)",
+                            toggleRatioLockTitle: "가로세로 비율 고정",
+                            resetSize: "원본 크기로 초기화",
+                            width: "가로",
+                            height: "세로",
+
+                            /* 워터마크 */
+                            addWatermark: "+ 워터마크 추가",
+                            addTextWatermark: "+ 텍스트 워터마크",
+                            addWatermarkTitle: "워터마크 종류 선택",
+                            uploadWatermark: "워터마크 이미지 업로드",
+                            addWatermarkAsText: "텍스트로 추가",
+                            padding: "여백",
+                            paddings: "여백",
+
+                            /* 저장 화면 */
+                            saveAsModalTitle: "이미지 저장",
+                            imageName: "이미지 이름",
+                            extension: "파일 확장자",
+                            format: "파일 형식",
+                            quality: "이미지 품질",
+                            nameIsRequired: "파일 이름을 입력해 주세요.",
+                            imageDimensionsHoverTitle: "저장 이미지 크기",
+                            actualSize: "실제 크기(100%)",
+                            fitSize: "화면에 맞추기",
+                            download: "다운로드",
+                            tabsMenu: "메뉴",
+
+                            /* 오류 */
+                            invalidImageError: "올바르지 않은 이미지입니다.",
+                            uploadImageError: "이미지 업로드 중 오류가 발생했습니다.",
+                            areNotImages: "이미지 파일이 아닙니다.",
+                            isNotImage: "이미지 파일이 아닙니다.",
+                            toBeUploaded: "업로드 예정",
+                        }}
+                    />
         </div>
       )}
 
