@@ -21,7 +21,6 @@ export default function WorkItemMonitorPage() {
     const [sites, setSites] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
-    // 💡 에러 해결: 서버사이드 렌더링(SSR) 시 빌드 에러 방지를 위해 window 객체 존재 여부 체크
     const [selectedSite, setSelectedSite] = useState<string>(() => {
         if (typeof window !== "undefined") return sessionStorage.getItem("work_selectedSite") || "";
         return "";
@@ -30,6 +29,13 @@ export default function WorkItemMonitorPage() {
         if (typeof window !== "undefined") return sessionStorage.getItem("work_selectedStatus") || "";
         return "";
     });
+    
+    // 💡 작업자 필터 상태 추가
+    const [selectedMember, setSelectedMember] = useState<string>(() => {
+        if (typeof window !== "undefined") return sessionStorage.getItem("work_selectedMember") || "";
+        return "";
+    });
+
     const [keywordInput, setKeywordInput] = useState<string>(() => {
         if (typeof window !== "undefined") return sessionStorage.getItem("work_keyword") || "";
         return "";
@@ -50,7 +56,6 @@ export default function WorkItemMonitorPage() {
 
     const [currentListFields, setCurrentListFields] = useState<string[]>([]);
 
-    // 체크박스 및 회원 배정 모달 관련 상태
     const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState<boolean>(false);
     const [members, setMembers] = useState<any[]>([]);
@@ -73,21 +78,12 @@ export default function WorkItemMonitorPage() {
             const res = await axios.get(`${API_BASE_URL}/api/members`, {
                 headers: getAuthHeaders()
             });
-            console.log("회원 API 응답:", res.data); // 응답 구조 확인
-
-            // 💡 백엔드 응답이 res.data.data 배열 형태인지 아니면 res.data 자체가 배열인지 분기 처리
             const membersData = Array.isArray(res.data.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
-
             if (membersData.length > 0) {
                 setMembers(membersData);
             }
         } catch (err) {
             console.error("회원 목록 조회 실패:", err);
-            // 실패 시 임시 데이터 (디버깅용)
-            setMembers([
-                { id: 1, name: "홍길동 (제로브이)", level: 2 },
-                { id: 2, name: "김철수 (클린파트너)", level: 2 }
-            ]);
         }
     };
 
@@ -96,13 +92,14 @@ export default function WorkItemMonitorPage() {
         fetchMembers();
     }, []);
 
-    // 💡 필터 상태가 바뀔 때마다 sessionStorage에 저장하여 뒤로가기 시 복원 가능하도록 함
+    // 💡 sessionStorage에 작업자 상태도 저장
     useEffect(() => {
         sessionStorage.setItem("work_selectedSite", selectedSite);
         sessionStorage.setItem("work_selectedStatus", selectedStatus);
+        sessionStorage.setItem("work_selectedMember", selectedMember);
         sessionStorage.setItem("work_keyword", keyword);
         sessionStorage.setItem("work_page", String(page));
-    }, [selectedSite, selectedStatus, keyword, page]);
+    }, [selectedSite, selectedStatus, selectedMember, keyword, page]);
 
     const fetchItems = async () => {
         if (!selectedSite) {
@@ -124,6 +121,15 @@ export default function WorkItemMonitorPage() {
             let query = [`workSiteId=${selectedSite}`, `page=${page}`, `pageSize=${pageSize}`];
             if (selectedStatus) query.push(`status=${selectedStatus}`);
             if (keyword) query.push(`keyword=${encodeURIComponent(keyword)}`);
+            
+            // 💡 작업자 필터링 파라미터 추가
+            if (selectedMember) {
+                if (selectedMember === "UNASSIGNED") {
+                    query.push(`workerName=미배정`);
+                } else {
+                    query.push(`assignedMemberId=${selectedMember}`);
+                }
+            }
 
             const queryString = `?${query.join("&")}`;
             const itemsRes = await axios.get(`${API_BASE_URL}/api/work-items${queryString}`);
@@ -140,9 +146,10 @@ export default function WorkItemMonitorPage() {
         }
     };
 
+    // 💡 selectedMember가 변경될 때도 API를 다시 호출하도록 의존성 배열에 추가
     useEffect(() => {
         fetchItems();
-    }, [selectedSite, selectedStatus, keyword, page, sites]);
+    }, [selectedSite, selectedStatus, selectedMember, keyword, page, sites]);
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
@@ -163,8 +170,6 @@ export default function WorkItemMonitorPage() {
 
         try {
             setAssignLoading(true);
-
-            // 💡 백엔드 작업자 배정 API 호출 (선택된 작업 ID 배열과 작업자 ID 전달)
             const response = await axios.post(`${API_BASE_URL}/api/work-items/assign`, {
                 itemIds: selectedItemIds,
                 memberId: memberId
@@ -177,11 +182,10 @@ export default function WorkItemMonitorPage() {
                 setIsAssignModalOpen(false);
                 setAssignKeyword("");
                 setSelectedItemIds([]);
-                fetchItems(); // 💡 배정 완료 후 목록 새로고침
+                fetchItems(); 
             } else {
                 alert("작업자 배정에 실패했습니다.");
             }
-
         } catch (err) {
             console.error("작업자 배정 에러:", err);
             alert("작업자 배정 중 오류가 발생했습니다.");
@@ -197,6 +201,11 @@ export default function WorkItemMonitorPage() {
 
     const handleStatusChange = (val: string) => {
         setSelectedStatus(val);
+        setPage(1);
+    };
+
+    const handleMemberChange = (val: string) => {
+        setSelectedMember(val);
         setPage(1);
     };
 
@@ -216,7 +225,6 @@ export default function WorkItemMonitorPage() {
         const memberName = member.name || member.loginId || "이름없음";
         const company = member.companyName || "";
         const searchTarget = `${memberName} ${company}`.toLowerCase();
-
         return searchTarget.includes(assignKeyword.toLowerCase());
     });
 
@@ -272,7 +280,7 @@ export default function WorkItemMonitorPage() {
                     </select>
                 </div>
 
-                <div className="w-48">
+                <div className="w-40">
                     <label className="block text-sm font-semibold text-slate-600 mb-1">상태 필터</label>
                     <select
                         value={selectedStatus}
@@ -285,6 +293,24 @@ export default function WorkItemMonitorPage() {
                         <option value="IN_PROGRESS">진행중</option>
                         <option value="COMPLETED">작업완료</option>
                         <option value="CANCELED">취소됨</option>
+                    </select>
+                </div>
+
+                {/* 💡 작업자 필터 영역 추가 */}
+                <div className="w-48">
+                    <label className="block text-sm font-semibold text-slate-600 mb-1">배정 작업자</label>
+                    <select
+                        value={selectedMember}
+                        onChange={(e) => handleMemberChange(e.target.value)}
+                        disabled={!selectedSite}
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 disabled:opacity-50"
+                    >
+                        <option value="">전체 작업자</option>
+                        <option value="UNASSIGNED">🔴 미배정만 보기</option>
+                        {members.map(m => {
+                            const displayName = m.companyName ? `${m.name} (${m.companyName})` : m.name || m.loginId;
+                            return <option key={m.id} value={m.id}>{displayName}</option>;
+                        })}
                     </select>
                 </div>
 
@@ -342,6 +368,7 @@ export default function WorkItemMonitorPage() {
                                 {currentListFields.map((field) => (
                                     <th key={field} className="p-4">{field}</th>
                                 ))}
+                                <th className="p-4 w-32">담당자</th>
                                 <th className="p-4 text-center w-28">위치 확인</th>
                                 <th className="p-4 text-center w-28">상태</th>
                             </tr>
@@ -349,17 +376,17 @@ export default function WorkItemMonitorPage() {
                         <tbody className="divide-y divide-slate-100">
                             {!selectedSite ? (
                                 <tr>
-                                    <td colSpan={6 + currentListFields.length} className="p-12 text-center text-slate-400 font-medium">
+                                    <td colSpan={7 + currentListFields.length} className="p-12 text-center text-slate-400 font-medium">
                                         상단에서 현장을 선택하시면 작업 현황이 표시됩니다.
                                     </td>
                                 </tr>
                             ) : loading ? (
                                 <tr>
-                                    <td colSpan={6 + currentListFields.length} className="p-12 text-center text-slate-400">데이터를 불러오는 중입니다...</td>
+                                    <td colSpan={7 + currentListFields.length} className="p-12 text-center text-slate-400">데이터를 불러오는 중입니다...</td>
                                 </tr>
                             ) : items.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6 + currentListFields.length} className="p-12 text-center text-slate-400">검색 결과가 없습니다.</td>
+                                    <td colSpan={7 + currentListFields.length} className="p-12 text-center text-slate-400">검색 결과가 없습니다.</td>
                                 </tr>
                             ) : (
                                 items.map((item) => {
@@ -381,24 +408,12 @@ export default function WorkItemMonitorPage() {
                                                     className="p-4 font-semibold text-slate-700 cursor-pointer hover:text-indigo-600"
                                                     onClick={() => router.push(`/admin/works/items/${item.id}`)}
                                                 >
-                                                    <div className="flex flex-col gap-0.5">
-                                                        <span>{item.rowData?.[field] ?? "-"}</span>
-                                                        {idx === 0 && (
-                                                            <span className="text-xs font-normal">
-                                                                {item.workerName ? (
-                                                                    <span className="text-indigo-600 font-bold">
-                                                                        담당: {item.workerName}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-slate-400">
-                                                                        담당자 미배정
-                                                                    </span>
-                                                                )}
-                                                            </span>
-                                                        )}
-                                                    </div>
+                                                    {item.rowData?.[field] ?? "-"}
                                                 </td>
                                             ))}
+                                            <td className="p-4 font-bold text-slate-700">
+                                                {item.workerName ? <span className="text-indigo-600">{item.workerName}</span> : <span className="text-red-400 font-normal">미배정</span>}
+                                            </td>
                                             <td className="p-4 text-center">
                                                 {item.latitude ? (
                                                     <span className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
