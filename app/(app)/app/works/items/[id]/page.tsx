@@ -214,21 +214,37 @@ export default function MobileWorkItemDetailPage() {
     }
   };
 
-  // --- 📄 PDF 다운로드 핸들러 ---
+  // --- 📄 PDF 다운로드 핸들러 (💡 완벽 수정 됨) ---
   const handleDownloadPdf = async (url: string, fileName: string) => {
     try {
       const response = await fetch(url);
       const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+
+      // 💡 1. 안드로이드 앱 (웹뷰) 환경인지 체크
+      const isAndroidApp = typeof window !== 'undefined' && (window as any).AndroidBlobDownloader;
+
+      if (isAndroidApp) {
+        // 💡 2. 웹뷰 환경: Blob을 Base64로 변환하여 안드로이드 브릿지로 직접 전달
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result as string;
+          (window as any).AndroidBlobDownloader.saveBase64File(base64data, "application/pdf", fileName);
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        // 💡 3. 일반 웹 브라우저 (PC/사파리/크롬 등): 기존 blob 다운로드 방식 사용
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }
     } catch (err) {
       console.error("다운로드 실패:", err);
+      // fallback: 에러 시 새 창으로 열기
       window.open(url, '_blank');
     }
   };
@@ -302,7 +318,7 @@ export default function MobileWorkItemDetailPage() {
           })()}
         </section>
 
-        {/* 2️⃣ 개인/연락처 정보 (웹 상세 노출 필드 적용) */}
+        {/* 2️⃣ 개인/연락처 정보 */}
         <section>
           <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">개인/연락처 정보</h2>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
@@ -462,14 +478,12 @@ export default function MobileWorkItemDetailPage() {
           <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">고객 확인 및 서명</h2>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
             
-            {/* 💡 연도, 월, 일 입력 상자의 테두리를 명확한 회색(border-slate-300)으로 적용 */}
             <div className="flex flex-wrap items-center gap-2">
               <input type="text" value={signYear} onChange={(e) => setSignYear(e.target.value)} className="w-16 p-1.5 text-center text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" /> 년
               <input type="text" value={signMonth} onChange={(e) => setSignMonth(e.target.value)} className="w-12 p-1.5 text-center text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" /> 월
               <input type="text" value={signDay} onChange={(e) => setSignDay(e.target.value)} className="w-12 p-1.5 text-center text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" /> 일
             </div>
             
-            {/* 성명 입력 상자 테두리 회색 통일 */}
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold">성명:</span>
               <input type="text" value={signName} onChange={(e) => setSignName(e.target.value)} className="flex-1 p-2 text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" placeholder="이름 입력" />
