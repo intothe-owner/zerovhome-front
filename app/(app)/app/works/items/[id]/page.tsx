@@ -3,11 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
+import dynamic from "next/dynamic";
 import {
-  ArrowLeft, MapPin, CheckCircle2, User,
-  Calendar, ClipboardCheck, Image as ImageIcon, Save, RotateCcw, PenTool, X,
+  ArrowLeft, CheckCircle2,
+  Calendar, ClipboardCheck, Image as ImageIcon, Save, RotateCcw, PenTool, X,Pen,
   Download, FileText, Camera, Loader2
 } from "lucide-react";
+
+// SSR 환경에서 Canvas 관련 에러 방지를 위해 dynamic import 사용
+const FilerobotImageEditor = dynamic(() => import("react-filerobot-image-editor"), { ssr: false });
 
 // 공통 인증 헤더
 const getAuthHeaders = () => {
@@ -18,6 +22,23 @@ const getAuthHeaders = () => {
     "Content-Type": "application/json",
     "Authorization": `Bearer ${cleanToken}`
   };
+};
+
+// 파일 용량 변환 포맷 함수 (Bytes -> KB, MB)
+const formatBytes = (bytes: number, decimals = 2) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+// Base64 문자열에서 대략적인 파일 용량(Byte) 계산
+const getBase64Size = (base64: string) => {
+  const base64str = base64.split('base64,')[1] || base64;
+  const decodedLen = Math.round((base64str.length * 3) / 4);
+  return decodedLen;
 };
 
 export default function MobileWorkItemDetailPage() {
@@ -36,6 +57,11 @@ export default function MobileWorkItemDetailPage() {
   // 입력 데이터 상태
   const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
   const [imageAnswers, setImageAnswers] = useState<Record<string, string>>({});
+  
+  // 이미지 용량 및 에디터 관련 상태
+  const [imageSizes, setImageSizes] = useState<Record<string, string>>({});
+  const [editImageTarget, setEditImageTarget] = useState<{ key: string, url: string } | null>(null);
+
   const [surveyAnswers, setSurveyAnswers] = useState<Record<string, any>>({});
   const [surveyForm, setSurveyForm] = useState<any>(null);
 
@@ -66,7 +92,18 @@ export default function MobileWorkItemDetailPage() {
 
         // 1. 기존 보고서 데이터 복원
         setTextAnswers(workItem.reportResult?.textAnswers || {});
-        setImageAnswers(workItem.reportResult?.imageAnswers || {});
+        
+        const loadedImageAnswers = workItem.reportResult?.imageAnswers || {};
+        setImageAnswers(loadedImageAnswers);
+
+        // 불러온 이미지의 용량 계산
+        const initialSizes: Record<string, string> = {};
+        Object.keys(loadedImageAnswers).forEach(key => {
+          if (loadedImageAnswers[key]) {
+             initialSizes[key] = formatBytes(getBase64Size(loadedImageAnswers[key]));
+          }
+        });
+        setImageSizes(initialSizes);
 
         // 2. 설문조사 데이터 복원
         setSurveyAnswers(workItem.surveyResponse?.answers || {});
@@ -177,11 +214,40 @@ export default function MobileWorkItemDetailPage() {
   const handleImageChange = (fieldName: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // 이미지 용량 저장
+    setImageSizes(prev => ({ ...prev, [fieldName]: formatBytes(file.size) }));
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setImageAnswers(prev => ({ ...prev, [fieldName]: reader.result as string }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const removeImage = (fieldName: string) => {
+    setImageAnswers(prev => {
+      const updated = { ...prev };
+      delete updated[fieldName];
+      return updated;
+    });
+    setImageSizes(prev => {
+      const updated = { ...prev };
+      delete updated[fieldName];
+      return updated;
+    });
+  };
+
+  const handleSaveEditedImage = (editedImageObject: any) => {
+    const newBase64 = editedImageObject.imageBase64;
+    const key = editImageTarget?.key;
+    if (key) {
+      setImageAnswers(prev => ({ ...prev, [key]: newBase64 }));
+      // 수정 후 용량 재계산
+      const newSizeStr = formatBytes(getBase64Size(newBase64));
+      setImageSizes(prev => ({ ...prev, [key]: newSizeStr }));
+    }
+    setEditImageTarget(null); // 에디터 닫기
   };
 
   const handleTextChange = (fieldName: string, value: string) => {
@@ -214,17 +280,15 @@ export default function MobileWorkItemDetailPage() {
     }
   };
 
-  // --- 📄 PDF 다운로드 핸들러 (💡 완벽 수정 됨) ---
+  // --- 📄 PDF 다운로드 핸들러 ---
   const handleDownloadPdf = async (url: string, fileName: string) => {
     try {
       const response = await fetch(url);
       const blob = await response.blob();
 
-      // 💡 1. 안드로이드 앱 (웹뷰) 환경인지 체크
       const isAndroidApp = typeof window !== 'undefined' && (window as any).AndroidBlobDownloader;
 
       if (isAndroidApp) {
-        // 💡 2. 웹뷰 환경: Blob을 Base64로 변환하여 안드로이드 브릿지로 직접 전달
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64data = reader.result as string;
@@ -232,7 +296,6 @@ export default function MobileWorkItemDetailPage() {
         };
         reader.readAsDataURL(blob);
       } else {
-        // 💡 3. 일반 웹 브라우저 (PC/사파리/크롬 등): 기존 blob 다운로드 방식 사용
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -244,7 +307,6 @@ export default function MobileWorkItemDetailPage() {
       }
     } catch (err) {
       console.error("다운로드 실패:", err);
-      // fallback: 에러 시 새 창으로 열기
       window.open(url, '_blank');
     }
   };
@@ -395,28 +457,57 @@ export default function MobileWorkItemDetailPage() {
                     const subKeyName = isHalf ? `${field.name} ${slotNum}` : field.name;
                     const fieldKey = activeCategory ? `${activeCategory}_${subKeyName}` : subKeyName;
                     const currentImg = imageAnswers[fieldKey];
+                    const currentSize = imageSizes[fieldKey];
 
                     return (
                       <div key={fieldKey}>
                         <span className="block text-sm font-bold text-gray-800 mb-2">
                           {subKeyName} {isHalf && <span className="text-[10px] text-blue-500 ml-1">(2장 중 {slotNum})</span>}
                         </span>
-                        <label className="flex flex-col items-center justify-center w-full h-40 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 overflow-hidden relative">
+                        
+                        <div className="relative w-full h-40 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden group">
                           {currentImg ? (
-                            <img src={currentImg} alt={subKeyName} className="w-full h-full object-cover" />
+                            <>
+                              <img src={currentImg} alt={subKeyName} className="w-full h-full object-contain bg-black/5" />
+                              
+                              {/* 💡 첨부 파일 용량 배지 표시 */}
+                              <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-1 rounded-md z-10">
+                                {currentSize || "용량 계산 중..."}
+                              </div>
+
+                              {/* 💡 수정/삭제 액션 버튼 */}
+                              <div className="absolute top-2 right-2 flex gap-2 z-10">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.preventDefault(); setEditImageTarget({ key: fieldKey, url: currentImg }); }}
+                                  className="p-2 bg-blue-600 text-white rounded-full shadow-md hover:bg-blue-700 transition"
+                                >
+                                  <PenTool size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.preventDefault(); removeImage(fieldKey); }}
+                                  className="p-2 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            </>
                           ) : (
-                            <div className="flex flex-col items-center gap-2 text-gray-400">
-                              <Camera size={24} />
-                              <span className="text-xs font-semibold">터치하여 사진 등록</span>
-                            </div>
+                            <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer hover:bg-gray-100">
+                              <div className="flex flex-col items-center gap-2 text-gray-400">
+                                <Camera size={24} />
+                                <span className="text-xs font-semibold">터치하여 사진 등록</span>
+                              </div>
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                className="hidden" 
+                                onChange={(e) => handleImageChange(fieldKey, e)} 
+                              />
+                            </label>
                           )}
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            className="hidden" 
-                            onChange={(e) => handleImageChange(fieldKey, e)} 
-                          />
-                        </label>
+                        </div>
                       </div>
                     );
                   });
@@ -522,6 +613,27 @@ export default function MobileWorkItemDetailPage() {
         </div>
 
       </main>
+
+      {/* 💡 6️⃣ 이미지 고급 편집 모달창 */}
+      {editImageTarget && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+          <FilerobotImageEditor
+            source={editImageTarget.url}
+            onSave={(editedImageObject, designState) => handleSaveEditedImage(editedImageObject)}
+            onClose={() => setEditImageTarget(null)}
+            annotationsCommon={{
+              fill: '#ff0000', // 기본 텍스트/그리기 색상
+            }}
+            Text={{ text: '이곳에 텍스트 입력...' }}
+            // 필요한 기능 탭 명시 (Adjust: 명도/채도/회전/크롭, Annotate: 텍스트/그리기, Filters: 필터, Finetune: 디테일 조정)
+            tabsIds={['Adjust', 'Annotate', 'Watermark', 'Filters', 'Finetune']} 
+            defaultTabId="Annotate"
+            defaultToolId="Text"
+            savingPixelRatio={1} // 저장 퀄리티 배율
+            previewPixelRatio={1}
+          />
+        </div>
+      )}
 
       {/* 서명 입력 모달 창 */}
       {isSignModalOpen && (
