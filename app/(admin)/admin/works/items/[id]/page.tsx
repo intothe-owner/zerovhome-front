@@ -223,6 +223,64 @@ export default function WorkItemDetailPage() {
     };
 
     // 💡 이미지 편집기 저장 핸들러
+    // S3 이미지를 Base64로 변환한 뒤 이미지 편집기 열기
+    const handleOpenImageEditor = async (
+        key: string,
+        imageUrl: string
+    ) => {
+        try {
+            // 이미 Base64 이미지라면 그대로 사용
+            if (imageUrl.startsWith("data:")) {
+                setEditImageTarget({
+                    key,
+                    url: imageUrl,
+                });
+                return;
+            }
+
+            // S3의 이전 CORS 응답 캐시를 사용하지 않고 새로 요청
+            const separator = imageUrl.includes("?") ? "&" : "?";
+            const cacheBustingUrl =
+                `${imageUrl}${separator}editor=${Date.now()}`;
+
+            const response = await fetch(cacheBustingUrl, {
+                method: "GET",
+                mode: "cors",
+                cache: "no-store",
+            });
+
+            if (!response.ok) {
+                throw new Error(
+                    `이미지 요청 실패: ${response.status} ${response.statusText}`
+                );
+            }
+
+            const blob = await response.blob();
+
+            // 받아온 이미지를 Base64로 변환
+            const reader = new FileReader();
+
+            reader.onloadend = () => {
+                setEditImageTarget({
+                    key,
+                    url: reader.result as string,
+                });
+            };
+
+            reader.onerror = () => {
+                alert("이미지 변환에 실패했습니다.");
+            };
+
+            reader.readAsDataURL(blob);
+        } catch (error) {
+            console.error("이미지 편집기 실행 실패:", error);
+
+            alert(
+                "이미지를 편집기로 불러오지 못했습니다.\n" +
+                "브라우저 캐시를 삭제한 후 다시 시도해 주세요."
+            );
+        }
+    };
     const handleSaveEditedImage = (editedImageObject: any) => {
         const newBase64 = editedImageObject.imageBase64;
         const key = editImageTarget?.key;
@@ -452,10 +510,14 @@ export default function WorkItemDetailPage() {
                                                     <div className="absolute top-2 right-2 flex items-center gap-2 z-50">
                                                         <button
                                                             type="button"
-                                                            onClick={(e) => {
+                                                            onClick={async (e) => {
                                                                 e.preventDefault();
                                                                 e.stopPropagation();
-                                                                setEditImageTarget({ key: fieldKey, url: currentImg });
+
+                                                                await handleOpenImageEditor(
+                                                                    fieldKey,
+                                                                    currentImg
+                                                                );
                                                             }}
                                                             className="flex items-center justify-center w-9 h-9 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition active:scale-90"
                                                         >
@@ -610,7 +672,6 @@ export default function WorkItemDetailPage() {
                 </div>
             </div>
 
-            {/* 💡 이미지 편집기 모달 */}
             {/* 💡 이미지 편집기 모달 */}
             {editImageTarget && (
                 <div className="fixed inset-0 z-[60] bg-black flex flex-col">
