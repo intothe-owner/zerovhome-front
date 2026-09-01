@@ -100,7 +100,7 @@ export default function Header({ menus, logoUrl, siteName, hasSlider = true, mem
         <div className="w-auto md:w-1/4 flex items-center">
           <Link href="/" className="flex items-center gap-2 flex-shrink-0">
             {logoUrl ? (
-              <img src={logoUrl} alt={siteName} className="w-[150px] h-auto max-h-12 object-contain" />
+              <img src={logoUrl} alt={siteName} className="w-[200px] h-auto max-h-12 object-contain" />
             ) : (
               <span className={`text-xl font-extrabold transition-colors whitespace-nowrap ${isSolid ? "text-slate-900 dark:text-white" : "text-white drop-shadow-md"}`}>
                 {siteName}
