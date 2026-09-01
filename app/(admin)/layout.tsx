@@ -9,7 +9,7 @@ import {
   FileText, MessageSquare, LogOut, UserCircle, Megaphone,
   BarChart2, Briefcase, ChevronDown, ChevronRight,
   ClipboardList, Sparkles, Home, UserPlus, CalendarDays, FolderTree,
-  Award,
+  Award,FileQuestionMark,
   FolderKanban, ListChecks, FileSpreadsheet
 } from "lucide-react";
 
@@ -67,6 +67,8 @@ const MENU_GROUPS = [
     items: [
       { name: "방문자 통계", href: "/admin/statistics", icon: BarChart2 },
       { name: "사업지원금", href: "/admin/support", icon: Briefcase },
+      { name: "전기기능사", href: "/admin/question", icon: FileQuestionMark },
+
     ]
   }
 ];
