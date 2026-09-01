@@ -15,6 +15,7 @@ export default function MobileResultPage() {
   
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
+  // 1. 데이터 불러오기
   useEffect(() => {
     const fetchResult = async () => {
       try {
@@ -24,11 +25,29 @@ export default function MobileResultPage() {
         }
       } catch (err) {
         alert("결과 데이터를 불러오지 못했습니다.");
-        router.push("/app/questions/history");
+        router.replace("/app/questions");
       }
     };
     if (sessionId) fetchResult();
   }, [sessionId, router, API_BASE_URL]);
+
+  // 2. 안드로이드 하드웨어 뒤로가기 버튼 제어
+  useEffect(() => {
+    // 현재 페이지 상태를 history에 강제로 하나 더 밀어넣습니다.
+    window.history.pushState(null, "", window.location.href);
+
+    const handlePopState = () => {
+      // 사용자가 뒤로가기를 시도하면(popstate 이벤트 발생), 무조건 메인 페이지로 replace 합니다.
+      // push 대신 replace를 사용하여 히스토리가 꼬이는 것을 방지합니다.
+      router.replace("/app/questions");
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [router]);
 
   if (!resultData) {
     return (
@@ -43,7 +62,11 @@ export default function MobileResultPage() {
     <div className="min-h-screen bg-slate-50 max-w-md mx-auto w-full pb-20">
       {/* 헤더 */}
       <header className="bg-white px-5 py-4 border-b border-slate-200 flex items-center gap-3">
-        <button onClick={() => router.push("/app/questions/history")} className="p-1 -ml-1 text-slate-600 active:bg-slate-100 rounded-full">
+        {/* UI 뒤로가기 버튼도 replace를 사용하여 메인으로 이동시킵니다 */}
+        <button 
+          onClick={() => router.replace("/app/questions")} 
+          className="p-1 -ml-1 text-slate-600 active:bg-slate-100 rounded-full"
+        >
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-lg font-bold text-slate-800">상세 결과</h1>
@@ -98,7 +121,7 @@ export default function MobileResultPage() {
                 
                 {q.explanation && (
                   <div className="ml-7 p-3 bg-slate-50 rounded-xl text-xs text-slate-600 leading-relaxed break-keep">
-                    <strong className="text-slate-800 block mb-1">해설</strong>{q.explanation}
+                    <strong className="text-slate-800 block mb-1">해설: </strong>{q.explanation}
                   </div>
                 )}
               </div>
