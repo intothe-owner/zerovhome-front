@@ -75,6 +75,8 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
   const pathname = usePathname(); 
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [adminInfo, setAdminInfo] = useState({ name: "", level: 0 });
+  
+  // 💡 초기 상태를 빈 객체({})로 두어 모든 아코디언이 닫힌 채로 시작하도록 설정
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -96,11 +98,11 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
         return;
       }
 
-      // 💡 [핵심] 레벨 9인 경우 '통합 현장 관리' 외의 페이지 접근 차단 (경고창 없이 바로 이동)
+      // 레벨 9인 경우 '통합 현장 관리' 외의 페이지 접근 차단 (경고창 없이 바로 이동)
       if (user.level === 9) {
         const isWorksPage = pathname === "/admin/works" || pathname.startsWith("/admin/works/");
         if (!isWorksPage) {
-          window.location.replace("/admin/works"); // 뒤로가기 기록이 남지 않도록 replace 사용
+          window.location.replace("/admin/works"); 
           return;
         }
       }
@@ -114,6 +116,7 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
     }
   }, [pathname]);
 
+  // 현재 활성화된 페이지가 속한 아코디언 그룹만 열어주는 로직
   useEffect(() => {
     const activeGroup = MENU_GROUPS.find(group => 
       group.items.some(item => {
@@ -146,13 +149,13 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
     return "관리자";
   };
 
-  // 💡 [핵심] 레벨 9인 경우 'works' 그룹만 필터링하여 노출
+  // 레벨 9인 경우 'works' 그룹만 필터링하여 노출
   const filteredMenuGroups = adminInfo.level === 9 
     ? MENU_GROUPS.filter(group => group.id === "works")
     : MENU_GROUPS;
 
   if (!isAuthorized) {
-    return null; // 권한 검증 전 깜빡임 방지
+    return null; 
   }
 
   return (
@@ -168,7 +171,8 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
 
         <nav className="flex-1 px-4 py-6 overflow-y-auto custom-scrollbar-dark">
           {filteredMenuGroups.map((group, index) => {
-            const isOpen = openGroups[group.id] ?? true; // 레벨 9는 기본 오픈 유도
+            // 💡 기본값을 false로 주어 처음에는 닫혀 있도록 처리 (활성 페이지만 useEffect로 openGroups[group.id] = true 가 됨)
+            const isOpen = openGroups[group.id] ?? false; 
             
             return (
               <div key={group.id} className={index !== 0 ? "mt-6" : ""}>
