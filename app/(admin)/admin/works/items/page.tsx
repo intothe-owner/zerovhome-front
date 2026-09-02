@@ -21,7 +21,6 @@ export default function WorkItemMonitorPage() {
     const [sites, setSites] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
-    // 💡 현장별 전체 작업자 배정 건수를 저장하는 상태 (ex: { "1": 15, "UNASSIGNED": 5 })
     const [assigneeCounts, setAssigneeCounts] = useState<Record<string, number>>({});
 
     const [selectedSite, setSelectedSite] = useState<string>(() => {
@@ -68,7 +67,10 @@ export default function WorkItemMonitorPage() {
 
     const fetchSites = async () => {
         try {
-            const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`);
+            // 💡 [수정됨] 인증 헤더를 추가하여 백엔드에서 사용자 레벨을 식별할 수 있게 함
+            const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`, {
+                headers: getAuthHeaders()
+            });
             if (siteRes.data.ok) setSites(siteRes.data.data);
         } catch (err) {
             console.error("현장 목록 조회 실패:", err);
@@ -94,14 +96,12 @@ export default function WorkItemMonitorPage() {
         fetchMembers();
     }, []);
 
-    // 💡 선택된 현장의 전체 작업 목록을 가져와서 작업자별 건수 카운트 계산
     const fetchAssigneeCounts = async (siteId: string) => {
         if (!siteId) {
             setAssigneeCounts({});
             return;
         }
         try {
-            // pageSize를 크게 잡아 해당 현장의 전체 데이터를 가져와 통계를 냄
             const res = await axios.get(`${API_BASE_URL}/api/work-items?workSiteId=${siteId}&pageSize=10000`);
             if (res.data.ok) {
                 const allItems = res.data.data || [];
@@ -213,7 +213,7 @@ export default function WorkItemMonitorPage() {
                 setAssignKeyword("");
                 setSelectedItemIds([]);
                 fetchItems(); 
-                fetchAssigneeCounts(selectedSite); // 통계 갱신
+                fetchAssigneeCounts(selectedSite); 
             } else {
                 alert("작업자 배정에 실패했습니다.");
             }
@@ -227,7 +227,7 @@ export default function WorkItemMonitorPage() {
 
     const handleSiteChange = (val: string) => {
         setSelectedSite(val);
-        setSelectedMember(""); // 현장 변경 시 작업자 필터 초기화
+        setSelectedMember(""); 
         setPage(1);
     };
 
@@ -328,7 +328,6 @@ export default function WorkItemMonitorPage() {
                     </select>
                 </div>
 
-                {/* 💡 작업자 필터 영역 (이름(건수) 표시 적용) */}
                 <div className="w-56">
                     <label className="block text-sm font-semibold text-slate-600 mb-1">배정 작업자</label>
                     <select

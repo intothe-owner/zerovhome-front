@@ -197,7 +197,7 @@ export default function Header({ menus, logoUrl, siteName, hasSlider = true, mem
                       href="/mypage"
                       className="block px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-indigo-600 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white transition-colors whitespace-nowrap"
                     >
-                      정보수정
+                      마이페이지
                     </Link>
                     <button
                       onClick={handleLogout}

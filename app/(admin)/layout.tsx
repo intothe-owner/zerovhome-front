@@ -9,7 +9,7 @@ import {
   FileText, MessageSquare, LogOut, UserCircle, Megaphone,
   BarChart2, Briefcase, ChevronDown, ChevronRight,
   ClipboardList, Sparkles, Home, UserPlus, CalendarDays, FolderTree,
-  Award,FileQuestionMark,
+  Award, FileQuestionMark,
   FolderKanban, ListChecks, FileSpreadsheet
 } from "lucide-react";
 
@@ -27,8 +27,7 @@ const MENU_GROUPS = [
     title: "통합 현장 관리",
     items: [
       { name: "현장 목록 및 생성", href: "/admin/works", icon: FolderKanban },
-      { name: "전체 작업 현황", href: "/admin/works/items", icon: ListChecks },
-      { name: "보고서 및 설문 결과", href: "/admin/works/reports", icon: FileSpreadsheet },
+      { name: "전체 작업 현황", href: "/admin/works/items", icon: ListChecks }
     ]
   },
   {
@@ -68,7 +67,6 @@ const MENU_GROUPS = [
       { name: "방문자 통계", href: "/admin/statistics", icon: BarChart2 },
       { name: "사업지원금", href: "/admin/support", icon: Briefcase },
       { name: "전기기능사", href: "/admin/question", icon: FileQuestionMark },
-
     ]
   }
 ];
@@ -91,11 +89,22 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
 
     try {
       const user = JSON.parse(userStr);
+      // 최소 관리자 권한 체크 (레벨 9 미만 차단)
       if (user.level < 9) {
         alert("관리자 페이지에 접근할 권한이 없습니다.");
         window.location.href = "/";
         return;
       }
+
+      // 💡 [핵심] 레벨 9인 경우 '통합 현장 관리' 외의 페이지 접근 차단 (경고창 없이 바로 이동)
+      if (user.level === 9) {
+        const isWorksPage = pathname === "/admin/works" || pathname.startsWith("/admin/works/");
+        if (!isWorksPage) {
+          window.location.replace("/admin/works"); // 뒤로가기 기록이 남지 않도록 replace 사용
+          return;
+        }
+      }
+
       setAdminInfo({ name: user.name, level: user.level });
       setIsAuthorized(true);
     } catch (e) {
@@ -108,7 +117,6 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
   useEffect(() => {
     const activeGroup = MENU_GROUPS.find(group => 
       group.items.some(item => {
-        // 아코디언 그룹 오픈 판정 시에도 정확한 경로 분기 반영
         if (item.href === "/admin/works") {
           return pathname === "/admin/works" || pathname.startsWith("/admin/works/[");
         }
@@ -132,7 +140,20 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
     setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const getLevelName = (level: number) => level === 10 ? "최고관리자" : "관리자";
+  const getLevelName = (level: number) => {
+    if (level === 10) return "최고관리자";
+    if (level === 9) return "현장관리자(Lv.9)";
+    return "관리자";
+  };
+
+  // 💡 [핵심] 레벨 9인 경우 'works' 그룹만 필터링하여 노출
+  const filteredMenuGroups = adminInfo.level === 9 
+    ? MENU_GROUPS.filter(group => group.id === "works")
+    : MENU_GROUPS;
+
+  if (!isAuthorized) {
+    return null; // 권한 검증 전 깜빡임 방지
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-slate-800">
@@ -140,32 +161,31 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
       {/* 사이드바 영역 */}
       <aside className="w-64 bg-slate-900 flex flex-col h-full flex-shrink-0 shadow-2xl z-20">
         <div className="h-16 flex items-center justify-center bg-slate-950 border-b border-slate-800 shadow-sm flex-shrink-0">
-          <Link href="/admin/dashboard" className="text-xl font-black text-white tracking-widest hover:text-indigo-400 transition-colors">
+          <Link href={adminInfo.level === 9 ? "/admin/works" : "/admin/dashboard"} className="text-xl font-black text-white tracking-widest hover:text-indigo-400 transition-colors">
             CMS ADMIN
           </Link>
         </div>
 
         <nav className="flex-1 px-4 py-6 overflow-y-auto custom-scrollbar-dark">
-          {MENU_GROUPS.map((group, index) => {
-            const isOpen = openGroups[group.id];
+          {filteredMenuGroups.map((group, index) => {
+            const isOpen = openGroups[group.id] ?? true; // 레벨 9는 기본 오픈 유도
             
             return (
               <div key={group.id} className={index !== 0 ? "mt-6" : ""}>
-                <button 
-                  onClick={() => toggleGroup(group.id)}
-                  className="flex w-full items-center justify-between px-3 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors"
-                >
-                  <span>{group.title}</span>
-                  {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                </button>
+                {adminInfo.level !== 9 && (
+                  <button 
+                    onClick={() => toggleGroup(group.id)}
+                    className="flex w-full items-center justify-between px-3 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors"
+                  >
+                    <span>{group.title}</span>
+                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </button>
+                )}
 
                 <div className={`space-y-1 overflow-hidden transition-all duration-300 ${isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
                   {group.items.map((item) => {
-                    // 💡 활성화(isActive) 조건 정밀 제어
-                    // '/admin/works'는 하위 메뉴인 '/admin/works/items', '/admin/works/reports'와 독립되도록 처리
                     let isActive = false;
                     if (item.href === "/admin/works") {
-                      // 현장 목록 페이지이거나 현장 상세 페이지([id])일 때만 활성화 (items나 reports 등은 제외)
                       isActive = pathname === "/admin/works" || /^\/admin\/works\/\d+$/.test(pathname);
                     } else {
                       isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -197,7 +217,7 @@ export default function AdminLayoutUI({ children }: { children: React.ReactNode 
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm flex-shrink-0 z-10">
           <div className="text-slate-500 font-bold text-sm tracking-wide">
-            관리자 대시보드
+            관리자 대시보드 {adminInfo.level === 9 ? "(통합 현장 관리 전용)" : ""}
           </div>
           <div className="flex items-center gap-5">
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-full">

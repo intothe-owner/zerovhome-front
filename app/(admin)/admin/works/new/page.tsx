@@ -13,7 +13,15 @@ export default function WorkSiteCreatePage() {
   const [loading, setLoading] = useState(false);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+  const getAuthHeaders = () => {
+    const rawToken = localStorage.getItem("token") || "";
+    const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
 
+    return {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${cleanToken}`
+    };
+  };
   const handleCreateSite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
@@ -28,6 +36,8 @@ export default function WorkSiteCreatePage() {
         hasSurvey: false,
         listVisibleFields: [],
         detailVisibleFields: []
+      }, {
+        headers: getAuthHeaders()
       });
       
       alert("현장이 성공적으로 개설되었습니다.");

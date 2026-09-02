@@ -10,11 +10,8 @@ export default function MobileResultPage() {
   const params = useParams();
   const router = useRouter();
   const sessionId = Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId;
-  
   const [resultData, setResultData] = useState<any>(null);
-  
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
-
   // 1. 데이터 불러오기
   useEffect(() => {
     const fetchResult = async () => {
