@@ -331,7 +331,7 @@ export default function PcWorkItemDetailPage() {
   const imageFields = reportForm.imageFields || [];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-24">
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-24 pt-24">
       {/* 📌 PC용 브레드크럼 서브타이틀 헤더 (뒤로가기 버튼 제거됨) */}
       <header className="sticky top-0 z-40 flex h-20 items-center justify-between px-8 bg-white border-b border-slate-200 shadow-sm">
         <div className="flex flex-col gap-1">
