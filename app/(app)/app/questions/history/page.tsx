@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { History, ArrowLeft, ChevronRight } from "lucide-react";
+import { History, ArrowLeft, ChevronRight, Trash2 } from "lucide-react";
 
 export default function MobileHistoryPage() {
   const router = useRouter();
@@ -13,33 +13,57 @@ export default function MobileHistoryPage() {
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const res = await axios.get(`${API_BASE_URL}/api/questions/exams/history`);
-        if (res.data.ok) {
-          setHistory(res.data.data);
-        }
-      } catch (err) {
-        console.error("이력 조회 실패:", err);
-      } finally {
-        setIsFetching(false);
+  const fetchHistory = async () => {
+    try {
+      setIsFetching(true);
+      const res = await axios.get(`${API_BASE_URL}/api/questions/exams/history`);
+      if (res.data.ok) {
+        setHistory(res.data.data);
       }
-    };
+    } catch (err) {
+      console.error("이력 조회 실패:", err);
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
+  useEffect(() => {
     fetchHistory();
   }, [API_BASE_URL]);
+
+  // 이력 삭제 핸들러
+  const handleDelete = async (e: React.MouseEvent, sessionId: number) => {
+    // 카드를 감싸고 있는 Link로 이벤트가 퍼지는 것(페이지 이동)을 방지합니다.
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (confirm("정말 이 응시 이력을 삭제하시겠습니까?")) {
+      try {
+        const res = await axios.delete(`${API_BASE_URL}/api/questions/exams/history/${sessionId}`);
+        if (res.data.ok) {
+          // 삭제 성공 시 화면 상태에서도 즉시 제거
+          setHistory((prev) => prev.filter((item) => item.id !== sessionId));
+        }
+      } catch (error) {
+        console.error("삭제 실패:", error);
+        alert("삭제 중 오류가 발생했습니다.");
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col max-w-md mx-auto w-full">
       {/* 헤더 */}
-      <header className="bg-white px-5 py-4 border-b border-slate-200 sticky top-0 z-10 flex items-center gap-3">
-        <button onClick={() => router.push("/app/questions")} className="p-1 -ml-1 text-slate-600 active:bg-slate-100 rounded-full">
-          <ArrowLeft size={24} />
-        </button>
-        <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-          <History className="text-indigo-600" size={22} />
-          내 응시 이력
-        </h1>
+      <header className="bg-white px-5 py-4 border-b border-slate-200 sticky top-0 z-10 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.push("/app/questions")} className="p-1 -ml-1 text-slate-600 active:bg-slate-100 rounded-full">
+            <ArrowLeft size={24} />
+          </button>
+          <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <History className="text-indigo-600" size={22} />
+            내 응시 이력
+          </h1>
+        </div>
       </header>
 
       {/* 이력 리스트 (카드 형태) */}
@@ -57,7 +81,7 @@ export default function MobileHistoryPage() {
               <Link 
                 key={session.id}
                 href={`/app/questions/result/${session.id}`}
-                className="block bg-white p-5 rounded-2xl border border-slate-200 shadow-sm active:bg-slate-50 active:scale-[0.98] transition-all"
+                className="block bg-white p-5 rounded-2xl border border-slate-200 shadow-sm active:bg-slate-50 active:scale-[0.98] transition-all relative group"
               >
                 <div className="flex justify-between items-start mb-3">
                   <div>
@@ -66,10 +90,22 @@ export default function MobileHistoryPage() {
                     </span>
                     <h3 className="font-bold text-slate-800 mt-2">{session.examTitle}</h3>
                   </div>
-                  <div className={`text-2xl font-black ${isPass ? "text-emerald-500" : "text-rose-500"}`}>
-                    {session.totalScore}점
+                  
+                  <div className="flex items-center gap-3">
+                    <div className={`text-2xl font-black ${isPass ? "text-emerald-500" : "text-rose-500"}`}>
+                      {session.totalScore}점
+                    </div>
+                    {/* 삭제 버튼 */}
+                    <button
+                      onClick={(e) => handleDelete(e, session.id)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                      title="이력 삭제"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
                 </div>
+
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
                   <span className="text-xs text-slate-500">
                     {new Date(session.createdAt).toLocaleDateString()} {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

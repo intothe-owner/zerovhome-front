@@ -20,17 +20,19 @@ export default function MobileExamSolvePage() {
   useEffect(() => {
     const fetchRandomTest = async () => {
       try {
-        const res = await axios.get(`${API_BASE_URL}/api/questions/exams/random-test`);
+        // ▼▼▼ 이 부분을 새롭게 만든 전용 랜덤 추출 API 경로로 변경합니다. ▼▼▼
+        const res = await axios.get(`${API_BASE_URL}/api/questions/exams/${sessionId}/random-test`);
+        
         if (res.data.ok) {
           setQuestions(res.data.data);
         }
       } catch (err) {
-        alert("문제를 불러오는데 실패했습니다.");
+        alert("해당 회차의 문제를 불러오는데 실패했습니다.");
         router.push("/app/questions");
       }
     };
-    fetchRandomTest();
-  }, [router, API_BASE_URL]);
+    if (sessionId) fetchRandomTest();
+  }, [sessionId, router, API_BASE_URL]);
 
   const handleSelectOption = (questionId: number, optionIndex: number) => {
     setAnswers((prev) => ({ ...prev, [questionId]: optionIndex }));

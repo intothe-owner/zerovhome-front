@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
-import { Trophy, AlertCircle, Home, List, ArrowLeft, Loader2 } from "lucide-react";
+import { Trophy, AlertCircle, Home, List, ArrowLeft, Loader2, RotateCcw } from "lucide-react";
 import Link from "next/link";
 
 export default function MobileResultPage() {
@@ -76,6 +76,15 @@ export default function MobileResultPage() {
           <p className="text-indigo-200 text-sm mb-1">{resultData.totalQuestions}문제 중 {resultData.correctCount}문제 정답</p>
           <div className="text-5xl font-extrabold">{resultData.totalScore}<span className="text-2xl font-medium">점</span></div>
         </div>
+        {resultData.totalQuestions !== resultData.correctCount && (
+          <button
+            onClick={() => router.push(`/app/questions/retry/${sessionId}`)}
+            className="w-full py-4 bg-white border-2 border-rose-200 text-rose-600 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-rose-50 active:scale-[0.98] transition-all shadow-sm"
+          >
+            <RotateCcw size={20} />
+            틀린 문제만 다시 풀기
+          </button>
+        )}
 
         {/* 오답노트 타이틀 */}
         <div className="flex items-center gap-2 font-bold text-slate-800 text-lg border-b border-slate-200 pb-3">
