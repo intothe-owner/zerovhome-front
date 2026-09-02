@@ -19,7 +19,7 @@ export default function SurveyFormConfigPage() {
   const siteId = params.id;
   const router = useRouter();
 
-  const [siteTitle, setSiteTitle] = useState(""); // 💡 현장명 상태 추가
+  const [siteTitle, setSiteTitle] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -27,24 +27,38 @@ export default function SurveyFormConfigPage() {
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
+  // 💡 [추가됨] 인증 헤더 생성 함수
+  const getAuthHeaders = () => {
+    const rawToken = localStorage.getItem("token") || "";
+    const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
+    return {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${cleanToken}`
+    };
+  };
+
   const fetchData = async () => {
     try {
-      // 1. 현장 정보 조회 (현장명 표시용)
-      const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`);
+      // 1. 현장 정보 조회 (인증 헤더 추가)
+      const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`, {
+        headers: getAuthHeaders()
+      });
       const currentSite = siteRes.data.data.find((s: any) => s.id === Number(siteId));
       if (currentSite) {
         setSiteTitle(currentSite.title);
       }
 
-      // 2. 설문조사 폼 조회
-      const res = await axios.get(`${API_BASE_URL}/api/site-surveys/work-sites/${siteId}/survey`);
+      // 2. 설문조사 폼 조회 (인증 헤더 추가)
+      const res = await axios.get(`${API_BASE_URL}/api/site-surveys/work-sites/${siteId}/survey`, {
+        headers: getAuthHeaders()
+      });
       if (res.data.ok && res.data.data) {
         setTitle(res.data.data.title || "");
         setDescription(res.data.data.description || "");
         setQuestions(res.data.data.questions || []);
       }
     } catch (err) {
-      console.log("설문조사 데이터 또는 현장 정보를 불러오지 못했습니다.");
+      console.error("설문조사 데이터 또는 현장 정보를 불러오지 못했습니다.", err);
     }
   };
 
@@ -88,14 +102,18 @@ export default function SurveyFormConfigPage() {
 
     try {
       setLoading(true);
+      // 💡 [수정됨] 저장 시 인증 헤더 추가
       await axios.post(`${API_BASE_URL}/api/site-surveys/work-sites/${siteId}/survey`, {
         title,
         description,
         questions
+      }, {
+        headers: getAuthHeaders()
       });
       alert("설문 양식이 저장되었습니다.");
       router.push(`/admin/works/${siteId}`);
     } catch (err) {
+      console.error("설문 저장 실패:", err);
       alert("설문 저장에 실패했습니다.");
     } finally {
       setLoading(false);
@@ -116,7 +134,6 @@ export default function SurveyFormConfigPage() {
             </h2>
           </div>
         </div>
-        {/* 💡 현재 현장명 뱃지 표시 */}
         {siteTitle && (
           <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-xl text-sm font-bold">
             <FolderKanban size={16} />

@@ -239,16 +239,13 @@ export default function MobileWorkItemDetailPage() {
   };
 
   // S3 이미지를 Base64로 변환한 뒤 이미지 편집기 열기
-  // 외부 S3 URL을 Canvas에 직접 전달할 때 발생할 수 있는 CORS/캐시 문제를 방지한다.
   const handleOpenImageEditor = async (key: string, imageUrl: string) => {
     try {
-      // 새로 첨부한 이미지처럼 이미 Base64 형식이면 바로 편집기를 연다.
       if (imageUrl.startsWith("data:")) {
         setEditImageTarget({ key, url: imageUrl });
         return;
       }
 
-      // 기존 S3 이미지라면 이전 CORS 응답 캐시를 피해서 새로 요청한다.
       const separator = imageUrl.includes("?") ? "&" : "?";
       const cacheBustingUrl = `${imageUrl}${separator}editor=${Date.now()}`;
       const response = await fetch(cacheBustingUrl, {
@@ -285,11 +282,10 @@ export default function MobileWorkItemDetailPage() {
     const key = editImageTarget?.key;
     if (key) {
       setImageAnswers(prev => ({ ...prev, [key]: newBase64 }));
-      // 수정 후 용량 재계산
       const newSizeStr = formatBytes(getBase64Size(newBase64));
       setImageSizes(prev => ({ ...prev, [key]: newSizeStr }));
     }
-    setEditImageTarget(null); // 에디터 닫기
+    setEditImageTarget(null);
   };
 
   const handleTextChange = (fieldName: string, value: string) => {
@@ -322,12 +318,13 @@ export default function MobileWorkItemDetailPage() {
     }
   };
 
-  // --- 📄 PDF 다운로드 핸들러 ---
+  // --- 📄 PDF 다운로드 핸들러 (인증 헤더 추가) ---
   const handleDownloadPdf = async (url: string, fileName: string) => {
     try {
       const response = await fetch(url);
-      const blob = await response.blob();
+      if (!response.ok) throw new Error("다운로드 실패");
 
+      const blob = await response.blob();
       const isAndroidApp = typeof window !== 'undefined' && (window as any).AndroidBlobDownloader;
 
       if (isAndroidApp) {
@@ -349,7 +346,7 @@ export default function MobileWorkItemDetailPage() {
       }
     } catch (err) {
       console.error("다운로드 실패:", err);
-      window.open(url, '_blank');
+      alert("다운로드 중 오류가 발생했습니다.");
     }
   };
 
@@ -383,43 +380,20 @@ export default function MobileWorkItemDetailPage() {
 
       <main className="p-4 space-y-6 max-w-md mx-auto">
 
-        {/* 1️⃣ 카테고리별 PDF 다운로드 */}
+        {/* 💡 [핵심 수정] 카테고리 파싱 방식을 제거하고, reportResult가 존재하면 무조건 통합 PDF 다운로드 버튼 노출 */}
         <section>
-          {(() => {
-            let pdfList: Record<string, string> = {};
-            try {
-              if (item?.reportResult?.pdfPath) {
-                if (item.reportResult.pdfPath.startsWith("{")) {
-                  pdfList = JSON.parse(item.reportResult.pdfPath);
-                } else {
-                  pdfList = { "통합본": item.reportResult.pdfPath };
-                }
-              }
-            } catch (e) { }
-
-            if (Object.keys(pdfList).length > 0) {
-              return (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {Object.entries(pdfList).map(([catName, url]) => {
-                    const customerName = signName || item?.customerName || "고객";
-                    const siteTitle = item?.site?.title || "작업현장";
-                    const downloadFileName = `[${siteTitle}] ${customerName}_${catName}_보고서.pdf`;
-
-                    return (
-                      <button
-                        key={catName}
-                        onClick={() => handleDownloadPdf(url, downloadFileName)}
-                        className="flex-1 min-w-[45%] flex items-center justify-center gap-1 px-3 py-2.5 bg-white border border-gray-300 text-gray-700 text-xs font-bold rounded-lg shadow-sm hover:bg-gray-50 active:scale-95 transition"
-                      >
-                        <Download size={14} /> PDF ({catName})
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            }
-            return null;
-          })()}
+          {item?.reportResult ? (
+            <button
+              onClick={() => handleDownloadPdf(`${API_BASE_URL}/api/work-items/${itemId}/pdf`, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm hover:bg-red-100 transition"
+            >
+              <Download size={16} /> 작업 결과 보고서 PDF 다운로드
+            </button>
+          ) : (
+            <div className="bg-white px-4 py-3 text-center text-xs text-gray-400 rounded-xl border border-gray-100 shadow-sm">
+              보고서를 저장하면 PDF 다운로드 버튼이 활성화됩니다.
+            </div>
+          )}
         </section>
 
         {/* 2️⃣ 개인/연락처 정보 */}
@@ -511,12 +485,10 @@ export default function MobileWorkItemDetailPage() {
                             <>
                               <img src={currentImg} alt={subKeyName} className="w-full h-full object-contain bg-black/5" />
 
-                              {/* 💡 첨부 파일 용량 배지 표시 */}
                               <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-1 rounded-md z-10">
                                 {currentSize || "용량 계산 중..."}
                               </div>
 
-                              {/* 💡 수정/삭제 액션 버튼 */}
                               <div className="absolute top-2 right-2 flex gap-2 z-10">
                                 <button
                                   type="button"
@@ -659,7 +631,7 @@ export default function MobileWorkItemDetailPage() {
 
       </main>
 
-      {/* 💡 6️⃣ 이미지 고급 편집 모달창 */}
+      {/* 이미지 고급 편집 모달창 */}
       {editImageTarget && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
           <FilerobotImageEditor
@@ -668,178 +640,20 @@ export default function MobileWorkItemDetailPage() {
               handleSaveEditedImage(editedImageObject)
             }
             onClose={() => setEditImageTarget(null)}
-
-            annotationsCommon={{
-              fill: "#ff0000",
-            }}
-
-            Text={{
-              text: "이곳에 텍스트를 입력하세요",
-            }}
-
-            tabsIds={[
-              "Adjust",
-              "Annotate",
-              "Watermark",
-              "Filters",
-              "Finetune",
-            ]}
+            annotationsCommon={{ fill: "#ff0000" }}
+            Text={{ text: "이곳에 텍스트를 입력하세요" }}
+            tabsIds={["Adjust", "Annotate", "Watermark", "Filters", "Finetune"]}
             defaultTabId="Annotate"
             defaultToolId="Text"
-
             savingPixelRatio={1}
             previewPixelRatio={1}
-
-            /* 외부 번역 서버를 사용하지 않고 아래 번역을 사용 */
             useBackendTranslations={false}
             language="ko"
-
-            theme={{
-              typography: {
-                fontFamily: '"Noto Sans KR", sans-serif',
-              },
-            }}
-
+            theme={{ typography: { fontFamily: '"Noto Sans KR", sans-serif' } }}
             translations={{
-              /* 상단 공통 버튼 */
-              name: "파일 이름",
-              save: "저장",
-              saveAs: "다른 이름으로 저장",
-              back: "뒤로",
-              loading: "불러오는 중...",
-              cancel: "취소",
-              apply: "적용",
-              warning: "경고",
-              confirm: "확인",
-              discardChanges: "변경사항 삭제",
-
-              /* 초기화 및 종료 경고 */
-              resetOperations: "모든 편집 초기화",
-              changesLoseWarningHint:
-                "초기화하면 지금까지 편집한 내용이 삭제됩니다. 계속하시겠습니까?",
-              discardChangesWarningHint:
-                "편집 내용을 저장하지 않고 닫으시겠습니까?",
-
-              /* 실행 취소 및 화면 조작 */
-              undoTitle: "실행 취소",
-              redoTitle: "다시 실행",
-              showImageTitle: "원본 이미지 보기",
-              zoomInTitle: "확대",
-              zoomOutTitle: "축소",
-              toggleZoomMenuTitle: "확대·축소 메뉴",
-
-              /* 왼쪽 탭 메뉴 */
-              adjustTab: "자르기·크기·회전",
-              finetuneTab: "세부 조정",
-              filtersTab: "필터",
-              watermarkTab: "워터마크",
-              annotateTabLabel: "그리기·텍스트",
-              resizeTab: "크기 변경",
-              resize: "크기 변경",
-
-              /* 자르기 */
-              cropTool: "자르기",
-              original: "원본",
-              custom: "사용자 지정",
-              square: "정사각형",
-              landscape: "가로형",
-              portrait: "세로형",
-              ellipse: "타원형",
-              classicTv: "기본 화면",
-              cinemascope: "와이드 화면",
-
-              /* 그리기 도구 */
-              arrowTool: "화살표",
-              blurTool: "흐리게",
-              ellipseTool: "타원",
-              imageTool: "이미지",
-              lineTool: "직선",
-              penTool: "펜",
-              polygonTool: "다각형",
-              rectangleTool: "사각형",
-              rotateTool: "회전",
-              textTool: "텍스트",
-
-              /* 세부 조정 도구 */
-              brightnessTool: "밝기",
-              contrastTool: "대비",
-              warmthTool: "색온도",
-              hsvTool: "색상 조정",
-              hue: "색조",
-              brightness: "밝기",
-              saturation: "채도",
-              value: "명도",
-
-              /* 좌우·상하 반전 */
-              flipX: "좌우 반전",
-              unFlipX: "좌우 반전 해제",
-              flipY: "상하 반전",
-              unFlipY: "상하 반전 해제",
-
-              /* 이미지 추가 */
-              importing: "가져오는 중...",
-              addImage: "+ 이미지 추가",
-              uploadImage: "이미지 업로드",
-              fromGallery: "갤러리에서 선택",
-              addImageTitle: "추가할 이미지 선택",
-              mutualizedFailedToLoadImg: "이미지를 불러오지 못했습니다.",
-
-              /* 도형 설정 */
-              sides: "면 개수",
-              cornerRadius: "모서리 둥글기",
-              stroke: "테두리",
-              opacity: "불투명도",
-              transparency: "투명도",
-              position: "위치",
-              shadow: "그림자",
-              horizontal: "가로",
-              vertical: "세로",
-              blur: "흐림",
-
-              /* 텍스트 설정 */
-              textSpacings: "텍스트 간격",
-              textAlignment: "텍스트 정렬",
-              fontFamily: "글꼴",
-              size: "크기",
-              letterSpacing: "글자 간격",
-              lineHeight: "줄 간격",
-
-              /* 크기 조정 */
-              resizeWidthTitle: "가로 크기(px)",
-              resizeHeightTitle: "세로 크기(px)",
-              toggleRatioLockTitle: "가로세로 비율 고정",
-              resetSize: "원본 크기로 초기화",
-              width: "가로",
-              height: "세로",
-
-              /* 워터마크 */
-              addWatermark: "+ 워터마크 추가",
-              addTextWatermark: "+ 텍스트 워터마크",
-              addWatermarkTitle: "워터마크 종류 선택",
-              uploadWatermark: "워터마크 이미지 업로드",
-              addWatermarkAsText: "텍스트로 추가",
-              padding: "여백",
-              paddings: "여백",
-
-              /* 저장 화면 */
-              saveAsModalTitle: "이미지 저장",
-              imageName: "이미지 이름",
-              extension: "파일 확장자",
-              format: "파일 형식",
-              quality: "이미지 품질",
-              nameIsRequired: "파일 이름을 입력해 주세요.",
-              imageDimensionsHoverTitle: "저장 이미지 크기",
-              actualSize: "실제 크기(100%)",
-              fitSize: "화면에 맞추기",
-              download: "다운로드",
-              tabsMenu: "메뉴",
-
-              /* 오류 */
-              invalidImageError: "올바르지 않은 이미지입니다.",
-              uploadImageError: "이미지 업로드 중 오류가 발생했습니다.",
-              areNotImages: "이미지 파일이 아닙니다.",
-              isNotImage: "이미지 파일이 아닙니다.",
-              toBeUploaded: "업로드 예정",
+              name: "파일 이름", save: "저장", saveAs: "다른 이름으로 저장", back: "뒤로",
+              loading: "불러오는 중...", cancel: "취소", apply: "적용", confirm: "확인",
+              discardChanges: "변경사항 삭제", resetOperations: "모든 편집 초기화",
             }}
           />
         </div>

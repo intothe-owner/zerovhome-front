@@ -12,11 +12,12 @@ export default function ReportFormConfigPage() {
   const router = useRouter();
 
   const [siteTitle, setSiteTitle] = useState("");
-  const [categories, setCategories] = useState<string[]>(["에어컨", "공기청정기"]);
+  // 기본값 제거 -> 빈 배열([])로 초기화
+  const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState("");
 
   const [textFields, setTextFields] = useState<{name: string, layout: 'FULL' | 'HALF'}[]>([]);
-  // 💡 사진 항목은 카테고리별 구분 없이 공통 항목으로 관리
+  // 사진 항목은 카테고리별 구분 없이 공통 항목으로 관리
   const [imageFields, setImageFields] = useState<{name: string, layout: 'FULL' | 'HALF'}[]>([]);
   
   const [newText, setNewText] = useState("");
@@ -28,21 +29,38 @@ export default function ReportFormConfigPage() {
   const [loading, setLoading] = useState(false);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
+  // 💡 [추가됨] API 통신을 위한 인증 헤더 생성 함수
+  const getAuthHeaders = () => {
+    const rawToken = localStorage.getItem("token") || "";
+    const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
+    return {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${cleanToken}`
+    };
+  };
+
   useEffect(() => {
     const fetchFormConfig = async () => {
       try {
-        const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`);
+        // 💡 [수정됨] 인증 헤더 추가
+        const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`, {
+          headers: getAuthHeaders()
+        });
         const currentSite = siteRes.data.data.find((s: any) => s.id === Number(siteId));
         if (currentSite) setSiteTitle(currentSite.title);
 
-        const res = await axios.get(`${API_BASE_URL}/api/reports/work-sites/${siteId}/report-form`);
+        // 💡 [수정됨] 인증 헤더 추가
+        const res = await axios.get(`${API_BASE_URL}/api/reports/work-sites/${siteId}/report-form`, {
+          headers: getAuthHeaders()
+        });
+        
         if (res.data.ok && res.data.data) {
-          setCategories(res.data.data.categories || ["에어컨", "공기청정기"]);
+          setCategories(res.data.data.categories || []);
           setTextFields(res.data.data.textFields || []);
           setImageFields(res.data.data.imageFields || []);
         }
       } catch (err) {
-        console.log("초기 데이터 로딩 오류");
+        console.error("초기 데이터 로딩 오류:", err);
       }
     };
     if (siteId) fetchFormConfig();
@@ -59,7 +77,6 @@ export default function ReportFormConfigPage() {
       setTextFields([...textFields, { name: newText.trim(), layout: textLayout }]);
       setNewText("");
     } else if (type === "image" && newImage.trim()) {
-      // 💡 공통 사진 항목 추가
       setImageFields([...imageFields, { name: newImage.trim(), layout: imageLayout }]);
       setNewImage("");
     }
@@ -68,14 +85,18 @@ export default function ReportFormConfigPage() {
   const handleSave = async () => {
     try {
       setLoading(true);
+      // 💡 [수정됨] 저장 시에도 인증 헤더 추가
       await axios.post(`${API_BASE_URL}/api/reports/work-sites/${siteId}/report-form`, {
         categories,
         textFields,
         imageFields
+      }, {
+        headers: getAuthHeaders()
       });
       alert("보고서 양식이 저장되었습니다.");
       router.push(`/admin/works/${siteId}`);
     } catch (err) {
+      console.error("저장 실패:", err);
       alert("저장에 실패했습니다.");
     } finally {
       setLoading(false);
@@ -115,6 +136,7 @@ export default function ReportFormConfigPage() {
           <button onClick={handleAddCategory} className="bg-slate-800 text-white px-5 py-2 rounded-xl font-bold hover:bg-slate-900 transition">추가</button>
         </div>
         <div className="flex gap-2 flex-wrap pt-2">
+          {categories.length === 0 && <p className="text-sm text-slate-400">등록된 카테고리가 없습니다.</p>}
           {categories.map((cat, i) => (
             <div key={i} className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-100 border border-slate-300 text-slate-700 font-bold rounded-lg text-sm">
               <span>{cat}</span>

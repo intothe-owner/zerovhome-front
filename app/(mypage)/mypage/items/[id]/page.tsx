@@ -292,11 +292,13 @@ export default function PcWorkItemDetailPage() {
     }
   };
 
+  // 💡 [핵심 수정] 카테고리 파싱 방식을 버리고, 백엔드의 통합 PDF API를 인증 헤더와 함께 직접 호출하도록 수정
   const handleDownloadPdf = async (url: string, fileName: string) => {
     try {
       const response = await fetch(url);
-      const blob = await response.blob();
+      if (!response.ok) throw new Error("다운로드 실패");
 
+      const blob = await response.blob();
       const isAndroidApp = typeof window !== 'undefined' && (window as any).AndroidBlobDownloader;
 
       if (isAndroidApp) {
@@ -318,7 +320,7 @@ export default function PcWorkItemDetailPage() {
       }
     } catch (err) {
       console.error("다운로드 실패:", err);
-      window.open(url, '_blank');
+      alert("다운로드 중 오류가 발생했습니다.");
     }
   };
 
@@ -331,9 +333,9 @@ export default function PcWorkItemDetailPage() {
   const imageFields = reportForm.imageFields || [];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-24 pt-24">
-      {/* 📌 PC용 브레드크럼 서브타이틀 헤더 (뒤로가기 버튼 제거됨) */}
-      <header className="sticky top-0 z-40 flex h-20 items-center justify-between px-8 bg-white border-b border-slate-200 shadow-sm">
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-24 pt-36">
+      {/* 📌 PC용 브레드크럼 서브타이틀 헤더 */}
+      <header className="fixed top-20 left-0 right-0 z-40 flex h-20 items-center justify-between px-8 bg-white border-b border-slate-200 shadow-sm">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
             <span onClick={() => router.push('/mypage')} className="hover:text-indigo-600 cursor-pointer">통합 현장 관리</span>
@@ -363,47 +365,22 @@ export default function PcWorkItemDetailPage() {
           {/* ⬅️ 좌측 사이드바 (정보, 서명, 설문) */}
           <div className="lg:col-span-4 space-y-6">
             
-            {/* PDF 다운로드 영역 */}
+            {/* 💡 [핵심 수정] 카테고리 유무와 무관하게 reportResult가 있으면 무조건 통합 PDF 다운로드 버튼 노출 */}
             <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <h2 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <FileText className="text-indigo-600" size={18} /> 보고서 다운로드
               </h2>
-              {(() => {
-                let pdfList: Record<string, string> = {};
-                try {
-                  if (item?.reportResult?.pdfPath) {
-                    if (item.reportResult.pdfPath.startsWith("{")) {
-                      pdfList = JSON.parse(item.reportResult.pdfPath);
-                    } else {
-                      pdfList = { "통합본": item.reportResult.pdfPath };
-                    }
-                  }
-                } catch (e) { }
-
-                if (Object.keys(pdfList).length > 0) {
-                  return (
-                    <div className="flex flex-col gap-3">
-                      {Object.entries(pdfList).map(([catName, url]) => {
-                        const customerName = signName || item?.customerName || "고객";
-                        const siteTitle = item?.site?.title || "작업현장";
-                        const downloadFileName = `[${siteTitle}] ${customerName}_${catName}_보고서.pdf`;
-
-                        return (
-                          <button
-                            key={catName}
-                            onClick={() => handleDownloadPdf(url, downloadFileName)}
-                            className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border border-slate-300 text-slate-700 text-sm font-bold rounded-xl hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition"
-                          >
-                            <span>{catName} 리포트</span>
-                            <Download size={16} />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                }
-                return <p className="text-sm text-slate-400">아직 생성된 PDF가 없습니다.</p>;
-              })()}
+              {item?.reportResult ? (
+                <button
+                  onClick={() => handleDownloadPdf(`${API_BASE_URL}/api/work-items/${itemId}/pdf`, `[${item.site?.title || '현장'}]_${item.customerName || '고객'}_보고서.pdf`)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 text-sm font-bold rounded-xl hover:bg-indigo-100 transition shadow-sm"
+                >
+                  <span>통합 보고서 PDF 다운로드</span>
+                  <Download size={16} />
+                </button>
+              ) : (
+                <p className="text-sm text-slate-400">아직 작성된 보고서가 없습니다. 양식을 작성하고 상단의 [전체 내용 저장하기]를 진행해주세요.</p>
+              )}
             </section>
 
             {/* 개인/연락처 정보 */}
@@ -630,6 +607,7 @@ export default function PcWorkItemDetailPage() {
         </div>
       </main>
 
+      {/* 이미지 고급 편집 모달창 */}
       {editImageTarget && (
         <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-4 lg:p-12">
           <div className="w-full max-w-6xl h-full max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl relative">
@@ -656,6 +634,7 @@ export default function PcWorkItemDetailPage() {
         </div>
       )}
 
+      {/* 서명 입력 모달 창 */}
       {isSignModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-xl p-8 shadow-2xl space-y-6">

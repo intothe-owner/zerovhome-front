@@ -8,13 +8,13 @@ import dynamic from "next/dynamic";
 import {
     ArrowLeft, FileText, CheckCircle2,
     Save, RotateCcw, PenTool, Pen, X,
-    Download, Image as ImageIcon, Camera
+    Download, Image as ImageIcon, Camera, Loader2
 } from "lucide-react";
 
-// 💡 SSR 환경에서 Canvas 관련 에러 방지를 위해 dynamic import 사용
+// SSR 환경에서 Canvas 관련 에러 방지를 위해 dynamic import 사용
 const FilerobotImageEditor = dynamic(() => import("react-filerobot-image-editor"), { ssr: false });
 
-// 💡 파일 용량 변환 포맷 함수 (Bytes -> KB, MB)
+// 파일 용량 변환 포맷 함수 (Bytes -> KB, MB)
 const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -24,7 +24,7 @@ const formatBytes = (bytes: number, decimals = 2) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
-// 💡 Base64 문자열에서 대략적인 파일 용량(Byte) 계산
+// Base64 문자열에서 대략적인 파일 용량(Byte) 계산
 const getBase64Size = (base64: string) => {
     const base64str = base64.split('base64,')[1] || base64;
     const decodedLen = Math.round((base64str.length * 3) / 4);
@@ -48,7 +48,7 @@ export default function WorkItemDetailPage() {
     const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
     const [imageAnswers, setImageAnswers] = useState<Record<string, string>>({});
 
-    // 💡 이미지 용량 및 에디터 관련 상태
+    // 이미지 용량 및 에디터 관련 상태
     const [imageSizes, setImageSizes] = useState<Record<string, string>>({});
     const [editImageTarget, setEditImageTarget] = useState<{ key: string, url: string } | null>(null);
 
@@ -69,10 +69,21 @@ export default function WorkItemDetailPage() {
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
+    const getAuthHeaders = () => {
+        const rawToken = localStorage.getItem("token") || "";
+        const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
+        return {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cleanToken}`
+        };
+    };
+
     const fetchData = async () => {
         try {
             setLoading(true);
-            const res = await axios.get(`${API_BASE_URL}/api/work-items/${itemId}`);
+            const res = await axios.get(`${API_BASE_URL}/api/work-items/${itemId}`, {
+                headers: getAuthHeaders()
+            });
 
             if (res.data.ok) {
                 const workItem = res.data.data;
@@ -84,7 +95,7 @@ export default function WorkItemDetailPage() {
                 const loadedImageAnswers = workItem.reportResult?.imageAnswers || {};
                 setImageAnswers(loadedImageAnswers);
 
-                // 💡 불러온 이미지의 용량 사전 계산
+                // 불러온 이미지의 용량 사전 계산
                 const initialSizes: Record<string, string> = {};
                 Object.keys(loadedImageAnswers).forEach(key => {
                     if (loadedImageAnswers[key]) {
@@ -117,8 +128,8 @@ export default function WorkItemDetailPage() {
                 // 폼 양식 불러오기
                 const siteId = workItem.workSiteId;
                 const [formRes, surveyRes] = await Promise.all([
-                    axios.get(`${API_BASE_URL}/api/reports/work-sites/${siteId}/report-form`).catch(() => null),
-                    axios.get(`${API_BASE_URL}/api/site-surveys/work-sites/${siteId}/survey`).catch(() => null)
+                    axios.get(`${API_BASE_URL}/api/reports/work-sites/${siteId}/report-form`, { headers: getAuthHeaders() }).catch(() => null),
+                    axios.get(`${API_BASE_URL}/api/site-surveys/work-sites/${siteId}/survey`, { headers: getAuthHeaders() }).catch(() => null)
                 ]);
 
                 if (formRes?.data?.ok && formRes.data.data) {
@@ -194,7 +205,7 @@ export default function WorkItemDetailPage() {
         setIsSignModalOpen(false);
     };
 
-    // 💡 이미지 업로드 핸들러
+    // 이미지 업로드 핸들러
     const handleImageChange = (fieldName: string, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -208,7 +219,7 @@ export default function WorkItemDetailPage() {
         reader.readAsDataURL(file);
     };
 
-    // 💡 이미지 삭제 핸들러
+    // 이미지 삭제 핸들러
     const removeImage = (fieldName: string) => {
         setImageAnswers(prev => {
             const updated = { ...prev };
@@ -222,14 +233,12 @@ export default function WorkItemDetailPage() {
         });
     };
 
-    // 💡 이미지 편집기 저장 핸들러
-    // S3 이미지를 Base64로 변환한 뒤 이미지 편집기 열기
+    // 이미지 편집기 열기
     const handleOpenImageEditor = async (
         key: string,
         imageUrl: string
     ) => {
         try {
-            // 이미 Base64 이미지라면 그대로 사용
             if (imageUrl.startsWith("data:")) {
                 setEditImageTarget({
                     key,
@@ -238,7 +247,6 @@ export default function WorkItemDetailPage() {
                 return;
             }
 
-            // S3의 이전 CORS 응답 캐시를 사용하지 않고 새로 요청
             const separator = imageUrl.includes("?") ? "&" : "?";
             const cacheBustingUrl =
                 `${imageUrl}${separator}editor=${Date.now()}`;
@@ -257,7 +265,6 @@ export default function WorkItemDetailPage() {
 
             const blob = await response.blob();
 
-            // 받아온 이미지를 Base64로 변환
             const reader = new FileReader();
 
             reader.onloadend = () => {
@@ -281,6 +288,7 @@ export default function WorkItemDetailPage() {
             );
         }
     };
+    
     const handleSaveEditedImage = (editedImageObject: any) => {
         const newBase64 = editedImageObject.imageBase64;
         const key = editImageTarget?.key;
@@ -308,7 +316,7 @@ export default function WorkItemDetailPage() {
                 customerSignature: signatureUrl,
                 signDate: `${signYear}-${String(signMonth).padStart(2, '0')}-${String(signDay).padStart(2, '0')}`,
                 signName
-            });
+            }, { headers: getAuthHeaders() });
 
             alert("작업 보고서, 설문 응답, 서명이 모두 성공적으로 저장되었습니다.");
             fetchData();
@@ -321,9 +329,17 @@ export default function WorkItemDetailPage() {
         }
     };
 
+    // 💡 [수정됨] 다운로드 시에도 인증 헤더를 포함하도록 수정
     const handleDownloadPdf = async (url: string, fileName: string) => {
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                headers: getAuthHeaders() // 백엔드 통신 시 토큰 필수
+            });
+            
+            if (!response.ok) {
+                throw new Error(`다운로드 요청 실패: ${response.status}`);
+            }
+            
             const blob = await response.blob();
             const blobUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -335,7 +351,7 @@ export default function WorkItemDetailPage() {
             window.URL.revokeObjectURL(blobUrl);
         } catch (err) {
             console.error("다운로드 실패:", err);
-            window.open(url, '_blank');
+            alert("다운로드 중 오류가 발생했습니다.");
         }
     };
 
@@ -390,47 +406,24 @@ export default function WorkItemDetailPage() {
                 </div>
             </div>
 
-            {/* 💡 카테고리별 PDF 다운로드 카드 */}
+            {/* 💡 [핵심 수정] 카테고리 로직(pdfPath 파싱) 제거하고 단순하게 reportResult의 유무로만 판단하여 버튼 렌더링 */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 <h3 className="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
                     <Download size={20} className="text-red-500" /> 작업 결과 보고서 (PDF 다운로드)
                 </h3>
-                {(() => {
-                    let pdfList: Record<string, string> = {};
-                    try {
-                        if (item?.reportResult?.pdfPath) {
-                            if (item.reportResult.pdfPath.startsWith("{")) {
-                                pdfList = JSON.parse(item.reportResult.pdfPath);
-                            } else {
-                                pdfList = { "통합본": item.reportResult.pdfPath };
-                            }
-                        }
-                    } catch (e) { }
-
-                    if (Object.keys(pdfList).length > 0) {
-                        return (
-                            <div className="flex flex-wrap gap-3">
-                                {Object.entries(pdfList).map(([catName, url]) => {
-                                    const customerName = signName || item?.customerName || "고객";
-                                    const siteTitle = item?.site?.title || "작업현장";
-                                    const downloadFileName = `[${siteTitle}] ${customerName}_${catName}_보고서.pdf`;
-
-                                    return (
-                                        <button
-                                            key={catName}
-                                            onClick={() => handleDownloadPdf(url, downloadFileName)}
-                                            className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 font-bold border border-red-200 rounded-xl hover:bg-red-100 hover:border-red-300 transition shadow-sm cursor-pointer"
-                                        >
-                                            <FileText size={18} /> {catName} 보고서 다운로드
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        );
-                    } else {
-                        return <p className="text-sm text-slate-400">아직 생성된 PDF가 없습니다. 우측 상단의 [모든 내용 저장하기]를 진행해주세요.</p>;
-                    }
-                })()}
+                
+                {item?.reportResult ? (
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            onClick={() => handleDownloadPdf(`${API_BASE_URL}/api/work-items/${itemId}/pdf`, `[${item.site?.title || '현장'}]_${item.customerName || '고객'}_보고서.pdf`)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 font-bold border border-red-200 rounded-xl hover:bg-red-100 hover:border-red-300 transition shadow-sm cursor-pointer"
+                        >
+                            <FileText size={18} /> 통합 보고서 PDF 다운로드
+                        </button>
+                    </div>
+                ) : (
+                    <p className="text-sm text-slate-400">아직 작성된 보고서가 없습니다. 양식을 작성하고 우측 상단의 [모든 내용 저장하기]를 진행해주세요.</p>
+                )}
             </div>
 
             {/* 텍스트 입력 칸 */}
@@ -475,7 +468,7 @@ export default function WorkItemDetailPage() {
                 </div>
             )}
 
-            {/* 💡 현장 사진 첨부 및 에디터 적용 영역 */}
+            {/* 현장 사진 첨부 및 에디터 적용 영역 */}
             {imageFields.length > 0 && (
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                     <h3 className="text-lg font-bold text-slate-800 border-b pb-3">현장 사진 첨부 {activeCategory && `(${activeCategory})`}</h3>
@@ -672,7 +665,7 @@ export default function WorkItemDetailPage() {
                 </div>
             </div>
 
-            {/* 💡 이미지 편집기 모달 */}
+            {/* 이미지 편집기 모달 */}
             {editImageTarget && (
                 <div className="fixed inset-0 z-[60] bg-black flex flex-col">
                     <FilerobotImageEditor
@@ -857,6 +850,7 @@ export default function WorkItemDetailPage() {
                     />
                 </div>
             )}
+            
             {/* 서명 입력 모달 창 */}
             {isSignModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
