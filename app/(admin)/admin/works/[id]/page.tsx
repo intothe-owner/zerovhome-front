@@ -30,6 +30,16 @@ export default function WorkSiteDetailPage() {
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
+    const getAuthHeaders = () => {
+    const rawToken = localStorage.getItem("token") || "";
+    const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
+
+    return {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${cleanToken}`
+    };
+  };
+
     // 데이터 불러오기
     const fetchData = async () => {
         try {
@@ -46,7 +56,9 @@ export default function WorkSiteDetailPage() {
             }
 
             // 2. 파싱된 작업 항목 리스트 조회
-            const itemsRes = await axios.get(`${API_BASE_URL}/api/work-items?workSiteId=${siteId}`);
+            const itemsRes = await axios.get(`${API_BASE_URL}/api/work-items?workSiteId=${siteId}`, {
+                headers: getAuthHeaders()
+            });
             if (itemsRes.data.ok) {
                 setItems(itemsRes.data.data);
             }
