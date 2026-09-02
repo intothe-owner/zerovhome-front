@@ -13,7 +13,7 @@ export default function MobileRetryPage() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [isSubmitted, setIsSubmitted] = useState(false); // 제출(채점) 여부
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
@@ -33,7 +33,7 @@ export default function MobileRetryPage() {
   }, [sessionId, router, API_BASE_URL]);
 
   const handleSelectOption = (questionId: number, optionIndex: number) => {
-    if (isSubmitted) return; // 제출 후에는 클릭 방지
+    if (isSubmitted) return;
     setAnswers((prev) => ({ ...prev, [questionId]: optionIndex }));
   };
 
@@ -41,8 +41,15 @@ export default function MobileRetryPage() {
     if (Object.keys(answers).length < questions.length) {
       if (!confirm("아직 풀지 않은 문제가 있습니다. 채점하시겠습니까?")) return;
     }
-    // 프론트엔드 단에서 즉시 채점 모드로 전환
+    
+    // 1. 제출 상태로 변경
     setIsSubmitted(true);
+    
+    // 2. 채점 후 다시 1번 문제(인덱스 0)로 돌아가기
+    setCurrentIndex(0);
+    
+    // 스크롤 맨 위로 올리기 (선택 사항)
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (questions.length === 0) {
@@ -55,7 +62,6 @@ export default function MobileRetryPage() {
   }
 
   const currentQ = questions[currentIndex];
-  // 현재 문제의 채점 결과
   const isCorrect = answers[currentQ.id] === currentQ.answer;
 
   return (
@@ -103,7 +109,6 @@ export default function MobileRetryPage() {
             const isSelected = answers[currentQ.id] === idx;
             const isRealAnswer = currentQ.answer === idx;
             
-            // 스타일 결정 로직
             let btnStyle = "border-slate-200 bg-white";
             let circleStyle = "bg-slate-200 text-slate-600";
 
@@ -113,7 +118,6 @@ export default function MobileRetryPage() {
                 circleStyle = "bg-indigo-600 text-white";
               }
             } else {
-              // 제출 후 화면
               if (isRealAnswer) {
                 btnStyle = "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-400 ring-offset-1";
                 circleStyle = "bg-emerald-500 text-white";
