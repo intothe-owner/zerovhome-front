@@ -23,7 +23,7 @@ export default function WorkSiteDetailPage() {
     const [isFetching, setIsFetching] = useState(true);
     const [saveLoading, setSaveLoading] = useState(false);
 
-    // 💡 동적 노출 필드 상태 (웹 목록, 웹 상세, 모바일 목록)
+    // 동적 노출 필드 상태 (웹 목록, 웹 상세, 모바일 목록)
     const [listFields, setListFields] = useState<string[]>([]);
     const [detailFields, setDetailFields] = useState<string[]>([]);
     const [mobileFields, setMobileFields] = useState<string[]>([]);
@@ -31,28 +31,31 @@ export default function WorkSiteDetailPage() {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
     const getAuthHeaders = () => {
-    const rawToken = localStorage.getItem("token") || "";
-    const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
+        const rawToken = localStorage.getItem("token") || "";
+        const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
 
-    return {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${cleanToken}`
+        return {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cleanToken}`
+        };
     };
-  };
 
     // 데이터 불러오기
     const fetchData = async () => {
         try {
             setIsFetching(true);
-            // 1. 현장 정보 조회
-            const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`);
+            
+            // 💡 [수정됨] 현장 정보 조회 시 누락되었던 인증 헤더(getAuthHeaders) 추가
+            const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`, {
+                headers: getAuthHeaders()
+            });
             const currentSite = siteRes.data.data.find((s: any) => s.id === Number(siteId));
 
             if (currentSite) {
                 setSiteInfo(currentSite);
                 setListFields(currentSite.listVisibleFields || []);
                 setDetailFields(currentSite.detailVisibleFields || []);
-                setMobileFields(currentSite.mobileListVisibleFields || []); // 💡 모바일 필드 복원
+                setMobileFields(currentSite.mobileListVisibleFields || []);
             }
 
             // 2. 파싱된 작업 항목 리스트 조회
@@ -86,7 +89,10 @@ export default function WorkSiteDetailPage() {
         try {
             setLoading(true);
             const res = await axios.post(`${API_BASE_URL}/api/work-sites/${siteId}/upload`, formData, {
-                headers: { "Content-Type": "multipart/form-data" }
+                headers: {
+                    ...getAuthHeaders(), // 💡 인증 헤더 병합
+                    "Content-Type": "multipart/form-data" 
+                }
             });
             alert(`성공적으로 ${res.data.saved}건의 작업이 업로드되었습니다.`);
             setFile(null);
@@ -99,7 +105,7 @@ export default function WorkSiteDetailPage() {
         }
     };
 
-    // 💡 노출 필드 토글 핸들러 (모바일용 추가)
+    // 노출 필드 토글 핸들러
     const toggleField = (type: "list" | "detail" | "mobile", field: string) => {
         if (type === "list") {
             setListFields(prev => prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]);
@@ -110,7 +116,7 @@ export default function WorkSiteDetailPage() {
         }
     };
 
-    // 💡 설정 저장 처리 (모바일 항목 같이 전송)
+    // 설정 저장 처리
     const handleSaveFields = async () => {
         try {
             setSaveLoading(true);
@@ -118,6 +124,8 @@ export default function WorkSiteDetailPage() {
                 listVisibleFields: listFields,
                 detailVisibleFields: detailFields,
                 mobileListVisibleFields: mobileFields
+            }, {
+                headers: getAuthHeaders() // 💡 저장 시에도 인증 헤더 확실히 추가
             });
             alert("노출 항목 설정이 저장되었습니다.");
             fetchData();
@@ -262,7 +270,7 @@ export default function WorkSiteDetailPage() {
                                                 />
                                                 웹 상세
                                             </label>
-                                            {/* 모바일 목록 (신규) */}
+                                            {/* 모바일 목록 */}
                                             <label className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer text-slate-600 hover:text-orange-500">
                                                 <input
                                                     type="checkbox"
