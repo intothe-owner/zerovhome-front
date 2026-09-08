@@ -43,7 +43,12 @@ const Home = () => {
   // 💡 2. 현장 목록을 불러오는 API 함수
   const fetchSites = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/work-sites`);
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API_BASE_URL}/api/work-sites`, {
+        headers: {
+          Authorization: `Bearer ${token}` // 👉 이 부분이 추가되어야 합니다!
+        }
+      });
       if (res.data.ok) {
         setSites(res.data.data);
       }
