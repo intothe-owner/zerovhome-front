@@ -7,6 +7,7 @@ import axios from "axios";
 import { Reorder, useDragControls } from "framer-motion";
 import { Play, RotateCcw, Navigation, Loader2, ArrowLeft, Trash2, CheckCircle, Search, X } from "lucide-react";
 import SwipeableWorkItem from "@/components/app/SwipeableWorkItem";
+import { openKakaoNavi } from "@/lib/navigation";
 
 const getAuthHeaders = () => {
   if (typeof window === "undefined") return {};
@@ -361,7 +362,10 @@ function StaticListItem({ item, activeTab, mobileFields, onSwipeAction, onComple
       {activeTab === "IN_PROGRESS" && !isCanceled && item.latitude && item.longitude && (
         <div className="mt-4" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <a 
-            href={`https://map.kakao.com/link/to/${encodeURIComponent(item.customerName || '작업지')},${item.latitude},${item.longitude}`}
+            onClick={(e) => {
+              e.preventDefault();
+              openKakaoNavi(item.roadAddress, item.longitude ?? "", item.latitude ?? "");
+            }}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full py-3.5 bg-[#fee500] text-gray-900 font-extrabold rounded-xl hover:opacity-90 transition shadow-sm text-sm"
