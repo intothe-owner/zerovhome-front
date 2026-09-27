@@ -74,6 +74,71 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
     setPage(p);
   };
 
+  // 페이지네이션 렌더링 함수
+  const renderPagination = (maxPagesToShow: number) => {
+    const currentGroup = Math.ceil(page / maxPagesToShow);
+    const startPage = (currentGroup - 1) * maxPagesToShow + 1;
+    const endPage = Math.min(startPage + maxPagesToShow - 1, totalPages);
+
+    const pages = [];
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <>
+        {/* 처음 */}
+        <button 
+          onClick={() => handlePageClick(1)} 
+          disabled={page === 1}
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="처음 페이지"
+        >
+          &lt;&lt;
+        </button>
+        {/* 이전 */}
+        <button 
+          onClick={() => handlePageClick(page - 1)} 
+          disabled={page === 1}
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="이전 페이지"
+        >
+          &lt;
+        </button>
+
+        {/* 페이지 번호 */}
+        {pages.map((p) => (
+          <button 
+            key={p} 
+            onClick={() => handlePageClick(p)} 
+            className={`w-8 h-8 md:w-10 md:h-10 rounded-xl font-medium transition-all ${page === p ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >
+            {p}
+          </button>
+        ))}
+
+        {/* 다음 */}
+        <button 
+          onClick={() => handlePageClick(page + 1)} 
+          disabled={page === totalPages || totalPages === 0}
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="다음 페이지"
+        >
+          &gt;
+        </button>
+        {/* 끝 */}
+        <button 
+          onClick={() => handlePageClick(totalPages)} 
+          disabled={page === totalPages || totalPages === 0}
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="끝 페이지"
+        >
+          &gt;&gt;
+        </button>
+      </>
+    );
+  };
+
   return (
     <div className="w-full flex flex-col pt-12 pb-24">
       <div className="max-w-6xl mx-auto px-4 w-full">
@@ -233,11 +298,20 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
           </div>
         )}
 
-        <div className="hidden md:flex justify-center items-center gap-2 mt-12">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <button key={p} onClick={() => handlePageClick(p)} className={`w-10 h-10 rounded-xl font-medium transition-all ${page === p ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{p}</button>
-          ))}
-        </div>
+        {/* 페이지네이션 영역 */}
+        {totalPages > 0 && (
+          <>
+            {/* PC 버전 (10페이지씩 노출) */}
+            <div className="hidden md:flex justify-center items-center gap-2 mt-12">
+              {renderPagination(10)}
+            </div>
+            
+            {/* 모바일 버전 (5페이지씩 노출) */}
+            <div className="flex md:hidden justify-center items-center gap-1 mt-12">
+              {renderPagination(5)}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
