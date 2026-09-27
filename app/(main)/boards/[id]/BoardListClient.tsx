@@ -1,7 +1,7 @@
 // src/app/(main)/boards/[id]/BoardListClient.tsx
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -29,7 +29,6 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
   const [search, setSearch] = useState('');
   const [submittedSearch, setSubmittedSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [allPosts, setAllPosts] = useState(initialPosts);
 
   const boardType = boardConfig.boardType;
   const listCount = boardConfig.listCount || 10;
@@ -42,7 +41,7 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
   }, []);
 
   // React Query를 통한 데이터 페칭
-  const { data, isLoading, isFetching } = useQuery({
+  const { data } = useQuery({
     queryKey: ['boardPosts', boardId, page, submittedSearch, selectedCategory],
     queryFn: () => fetchBoardPosts(boardId, page, listCount, submittedSearch, selectedCategory),
     initialData: page === 1 && !submittedSearch && selectedCategory === initialCategory 
@@ -74,8 +73,8 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
     setPage(p);
   };
 
-  // 페이지네이션 렌더링 함수
-  const renderPagination = (maxPagesToShow: number) => {
+  // 뷰타입(viewType)을 받아 React Key 충돌을 방지합니다.
+  const renderPagination = (maxPagesToShow: number, viewType: string) => {
     const currentGroup = Math.ceil(page / maxPagesToShow);
     const startPage = (currentGroup - 1) * maxPagesToShow + 1;
     const endPage = Math.min(startPage + maxPagesToShow - 1, totalPages);
@@ -89,29 +88,29 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
       <>
         {/* 처음 */}
         <button 
+          key={`${viewType}-first`}
           onClick={() => handlePageClick(1)} 
           disabled={page === 1}
-          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="처음 페이지"
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg md:rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm shrink-0"
         >
-          &lt;&lt;
+          {'<<'}
         </button>
         {/* 이전 */}
         <button 
+          key={`${viewType}-prev`}
           onClick={() => handlePageClick(page - 1)} 
           disabled={page === 1}
-          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="이전 페이지"
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg md:rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm shrink-0"
         >
-          &lt;
+          {'<'}
         </button>
 
         {/* 페이지 번호 */}
         {pages.map((p) => (
           <button 
-            key={p} 
+            key={`${viewType}-${p}`} 
             onClick={() => handlePageClick(p)} 
-            className={`w-8 h-8 md:w-10 md:h-10 rounded-xl font-medium transition-all ${page === p ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl font-medium transition-all text-sm shrink-0 ${page === p ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >
             {p}
           </button>
@@ -119,21 +118,21 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
 
         {/* 다음 */}
         <button 
+          key={`${viewType}-next`}
           onClick={() => handlePageClick(page + 1)} 
           disabled={page === totalPages || totalPages === 0}
-          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="다음 페이지"
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg md:rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm shrink-0"
         >
-          &gt;
+          {'>'}
         </button>
         {/* 끝 */}
         <button 
+          key={`${viewType}-last`}
           onClick={() => handlePageClick(totalPages)} 
           disabled={page === totalPages || totalPages === 0}
-          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="끝 페이지"
+          className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-lg md:rounded-xl font-medium transition-all bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm shrink-0"
         >
-          &gt;&gt;
+          {'>>'}
         </button>
       </>
     );
@@ -190,6 +189,7 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
           </div>
         )}
 
+        {/* --- GENERAL (일반 게시판) --- */}
         {boardType === 'GENERAL' && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="hidden md:block overflow-x-auto">
@@ -251,6 +251,7 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
           </div>
         )}
 
+        {/* --- GALLERY --- */}
         {boardType === 'GALLERY' && (
           <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {posts.map((post: any) => (
@@ -271,6 +272,7 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
           </div>
         )}
 
+        {/* --- FAQ --- */}
         {boardType === 'FAQ' && (
           <div className="space-y-4">
             {posts.map((post: any) => (
@@ -301,14 +303,14 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
         {/* 페이지네이션 영역 */}
         {totalPages > 0 && (
           <>
-            {/* PC 버전 (10페이지씩 노출) */}
-            <div className="hidden md:flex justify-center items-center gap-2 mt-12">
-              {renderPagination(10)}
+            {/* PC 및 태블릿 버전 (10페이지씩 노출, md 이상 화면) */}
+            <div className="hidden md:flex justify-center items-center gap-2 mt-12 w-full">
+              {renderPagination(10, 'pc')}
             </div>
             
-            {/* 모바일 버전 (5페이지씩 노출) */}
-            <div className="flex md:hidden justify-center items-center gap-1 mt-12">
-              {renderPagination(5)}
+            {/* 모바일 버전 (5페이지씩 노출, md 미만 화면) */}
+            <div className="flex md:hidden justify-center items-center gap-1 mt-12 w-full flex-wrap">
+              {renderPagination(5, 'mobile')}
             </div>
           </>
         )}
