@@ -49,6 +49,7 @@ export default function MobileWorkItemDetailPage() {
   const [item, setItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false); // 👈 PDF 다운로드 상태 추가
 
   // 보고서 폼 및 카테고리 설정 상태
   const [reportForm, setReportForm] = useState<any>({ categories: [], textFields: [], imageFields: [] });
@@ -321,6 +322,8 @@ export default function MobileWorkItemDetailPage() {
   // --- 📄 PDF 다운로드 핸들러 (인증 헤더 추가) ---
   const handleDownloadPdf = async (url: string, fileName: string) => {
     try {
+      setIsDownloadingPdf(true); // 👈 다운로드 상태 켜기
+
       const response = await fetch(url);
       if (!response.ok) throw new Error("다운로드 실패");
 
@@ -347,6 +350,8 @@ export default function MobileWorkItemDetailPage() {
     } catch (err) {
       console.error("다운로드 실패:", err);
       alert("다운로드 중 오류가 발생했습니다.");
+    } finally {
+      setIsDownloadingPdf(false); // 👈 다운로드 상태 끄기
     }
   };
 
@@ -385,9 +390,22 @@ export default function MobileWorkItemDetailPage() {
           {item?.reportResult ? (
             <button
               onClick={() => handleDownloadPdf(`${API_BASE_URL}/api/work-items/${itemId}/pdf`, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm hover:bg-red-100 transition"
+              disabled={isDownloadingPdf} // 👈 다운로드 중 버튼 비활성화
+              className={`w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm transition ${
+                isDownloadingPdf ? "opacity-70 cursor-not-allowed" : "hover:bg-red-100"
+              }`}
             >
-              <Download size={16} /> 작업 결과 보고서 PDF 다운로드
+              {isDownloadingPdf ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" /> {/* 👈 빙글빙글 도는 로딩 아이콘 */}
+                  PDF 파일 생성 및 다운로드 중...
+                </>
+              ) : (
+                <>
+                  <Download size={16} /> 
+                  작업 결과 보고서 PDF 다운로드
+                </>
+              )}
             </button>
           ) : (
             <div className="bg-white px-4 py-3 text-center text-xs text-gray-400 rounded-xl border border-gray-100 shadow-sm">
