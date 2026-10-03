@@ -394,6 +394,7 @@ export default function MobileWorkItemDetailPage() {
                 const pdfDownloadUrl = item.reportResult.pdfPath 
                   ? item.reportResult.pdfPath 
                   : `${API_BASE_URL}/api/work-items/${itemId}/pdf`;
+                console.log(pdfDownloadUrl);
                   
                 handleDownloadPdf(pdfDownloadUrl, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`);
               }}
