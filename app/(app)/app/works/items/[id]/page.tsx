@@ -385,11 +385,18 @@ export default function MobileWorkItemDetailPage() {
 
       <main className="p-4 space-y-6 max-w-md mx-auto">
 
-        {/* 💡 [핵심 수정] 카테고리 파싱 방식을 제거하고, reportResult가 존재하면 무조건 통합 PDF 다운로드 버튼 노출 */}
+        {/* 💡 [핵심 수정] 다운로드 버튼 */}
         <section>
           {item?.reportResult ? (
             <button
-              onClick={() => handleDownloadPdf(`${API_BASE_URL}/api/work-items/${itemId}/pdf`, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`)}
+              onClick={() => {
+                // DB에 저장된 pdfPath가 있으면 그 URL을 직접 사용하고, 없으면 백엔드 API로 요청
+                const pdfDownloadUrl = item.reportResult.pdfPath 
+                  ? item.reportResult.pdfPath 
+                  : `${API_BASE_URL}/api/work-items/${itemId}/pdf`;
+                  
+                handleDownloadPdf(pdfDownloadUrl, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`);
+              }}
               disabled={isDownloadingPdf} // 👈 다운로드 중 버튼 비활성화
               className={`w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm transition ${
                 isDownloadingPdf ? "opacity-70 cursor-not-allowed" : "hover:bg-red-100"
@@ -397,7 +404,7 @@ export default function MobileWorkItemDetailPage() {
             >
               {isDownloadingPdf ? (
                 <>
-                  <Loader2 size={16} className="animate-spin" /> {/* 👈 빙글빙글 도는 로딩 아이콘 */}
+                  <Loader2 size={16} className="animate-spin" />
                   PDF 파일 생성 및 다운로드 중...
                 </>
               ) : (
