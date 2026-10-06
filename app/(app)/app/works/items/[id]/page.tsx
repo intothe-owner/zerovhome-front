@@ -320,27 +320,29 @@ export default function MobileWorkItemDetailPage() {
   };
 
   // --- 📄 PDF 다운로드 핸들러 (인증 헤더 추가) ---
+  // --- 📄 PDF 다운로드 핸들러 (직접 URL 이동 방식) ---
   const handleDownloadPdf = (url: string, fileName: string) => {
-    // 안드로이드 웹뷰 환경 체크
-    const isAndroidApp = typeof window !== 'undefined' && (window as any).AndroidBlobDownloader;
+    try {
+      // 💡 [핵심 수정] AndroidBlobDownloader가 아니라 'Android' 객체를 찾도록 변경
+      const isAndroidApp = typeof window !== 'undefined' && (window as any).Android;
 
-    if (isAndroidApp) {
-      // 💡 안드로이드 앱 환경: 웹뷰 설정에 따라 새 창(브라우저)을 띄우거나, 
-      // 안드로이드 쪽에 URL을 통째로 넘겨서 다운로드하게 할 수 있습니다.
-      //window.open(url, '_blank');
-      
-      // 만약 안드로이드 앱에 URL 전용 다운로더 함수가 있다면 아래처럼 쓸 수도 있습니다.
-       (window as any).AndroidBlobDownloader.downloadFromUrl(url, fileName);
-    } else {
-      // 💡 일반 웹 브라우저 환경: <a> 태그로 직접 접근
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank'; // S3 URL일 경우 현재 창이 넘어가지 않도록 새 탭에서 열기
-      link.download = fileName; 
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (isAndroidApp && typeof (window as any).Android.downloadFromUrl === 'function') {
+        // 1. 안드로이드 앱 환경: 네이티브 다운로더 브릿지 호출
+        (window as any).Android.downloadFromUrl(url, fileName);
+      } else {
+        // 2. 일반 웹 브라우저 및 아이폰 환경: <a> 태그를 통해 직접 열기
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank'; // 새 탭에서 열기
+        link.download = fileName;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err) {
+      console.error("다운로드 실패:", err);
+      alert("다운로드 중 오류가 발생했습니다.");
     }
   };
 
