@@ -327,10 +327,10 @@ export default function MobileWorkItemDetailPage() {
     if (isAndroidApp) {
       // 💡 안드로이드 앱 환경: 웹뷰 설정에 따라 새 창(브라우저)을 띄우거나, 
       // 안드로이드 쪽에 URL을 통째로 넘겨서 다운로드하게 할 수 있습니다.
-      window.open(url, '_blank');
+      //window.open(url, '_blank');
       
       // 만약 안드로이드 앱에 URL 전용 다운로더 함수가 있다면 아래처럼 쓸 수도 있습니다.
-      // (window as any).AndroidBlobDownloader.downloadFromUrl(url, fileName);
+       (window as any).AndroidBlobDownloader.downloadFromUrl(url, fileName);
     } else {
       // 💡 일반 웹 브라우저 환경: <a> 태그로 직접 접근
       const link = document.createElement('a');
