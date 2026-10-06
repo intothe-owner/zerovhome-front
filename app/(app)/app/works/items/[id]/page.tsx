@@ -320,74 +320,27 @@ export default function MobileWorkItemDetailPage() {
   };
 
   // --- 📄 PDF 다운로드 핸들러 (인증 헤더 추가) ---
-  const handleDownloadPdf = async (url: string, fileName: string) => {
-    try {
-      setIsDownloadingPdf(true); // 👈 다운로드 상태 켜기
+  const handleDownloadPdf = (url: string, fileName: string) => {
+    // 안드로이드 웹뷰 환경 체크
+    const isAndroidApp = typeof window !== 'undefined' && (window as any).AndroidBlobDownloader;
 
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("다운로드 실패");
-
-      const blob = await response.blob();
+    if (isAndroidApp) {
+      // 💡 안드로이드 앱 환경: 웹뷰 설정에 따라 새 창(브라우저)을 띄우거나, 
+      // 안드로이드 쪽에 URL을 통째로 넘겨서 다운로드하게 할 수 있습니다.
+      window.open(url, '_blank');
       
-      // 안드로이드 앱 환경인지 확인
-      const isAndroidApp = typeof window !== 'undefined' && (window as any).AndroidBlobDownloader;
-
-      // 새롭게 적용한 분할 다운로드 방식 지원 여부 확인
-      if (isAndroidApp && (window as any).AndroidBlobDownloader.startDownload) {
-        const CHUNK_SIZE = 1024 * 1024; // 1MB씩 분할 (필요시 조절)
-        const downloadId = Date.now().toString() + Math.floor(Math.random() * 1000);
-
-        // 1. 안드로이드에 다운로드 시작 알림 및 파일 생성
-        (window as any).AndroidBlobDownloader.startDownload(downloadId, fileName, "application/pdf");
-
-        let offset = 0;
-        const reader = new FileReader();
-
-        const readNextChunk = () => {
-          if (offset >= blob.size) {
-            // 3. 파일의 끝에 도달하면 다운로드 완료 알림
-            (window as any).AndroidBlobDownloader.finishDownload(downloadId, "application/pdf");
-            setIsDownloadingPdf(false); // 로딩 스피너 종료
-            return;
-          }
-
-          // 1MB 단위로 blob 자르기
-          const slice = blob.slice(offset, offset + CHUNK_SIZE);
-          
-          reader.onloadend = (e) => {
-            const dataUrl = e.target?.result as string;
-            if (dataUrl) {
-              // base64 헤더 부분(data:application/pdf;base64,)을 제거하고 순수 데이터만 추출
-              const base64Chunk = dataUrl.split(',')[1];
-              // 2. 안드로이드로 잘라낸 조각 전송
-              (window as any).AndroidBlobDownloader.saveChunk(downloadId, base64Chunk);
-            }
-            offset += CHUNK_SIZE;
-            readNextChunk(); // 다음 조각 전송을 위해 재귀 호출
-          };
-          reader.readAsDataURL(slice);
-        };
-
-        // 분할 전송 시작
-        readNextChunk();
-
-      } else {
-        // 기존 웹 브라우저용 다운로드 로직
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-        
-        setIsDownloadingPdf(false); // 로딩 스피너 종료
-      }
-    } catch (err) {
-      console.error("다운로드 실패:", err);
-      alert("다운로드 중 오류가 발생했습니다.");
-      setIsDownloadingPdf(false); // 예외 발생 시 로딩 스피너 종료
+      // 만약 안드로이드 앱에 URL 전용 다운로더 함수가 있다면 아래처럼 쓸 수도 있습니다.
+      // (window as any).AndroidBlobDownloader.downloadFromUrl(url, fileName);
+    } else {
+      // 💡 일반 웹 브라우저 환경: <a> 태그로 직접 접근
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank'; // S3 URL일 경우 현재 창이 넘어가지 않도록 새 탭에서 열기
+      link.download = fileName; 
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 
