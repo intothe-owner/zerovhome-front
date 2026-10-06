@@ -328,16 +328,51 @@ export default function MobileWorkItemDetailPage() {
       if (!response.ok) throw new Error("다운로드 실패");
 
       const blob = await response.blob();
+      
+      // 안드로이드 앱 환경인지 확인
       const isAndroidApp = typeof window !== 'undefined' && (window as any).AndroidBlobDownloader;
 
-      if (isAndroidApp) {
+      // 새롭게 적용한 분할 다운로드 방식 지원 여부 확인
+      if (isAndroidApp && (window as any).AndroidBlobDownloader.startDownload) {
+        const CHUNK_SIZE = 1024 * 1024; // 1MB씩 분할 (필요시 조절)
+        const downloadId = Date.now().toString() + Math.floor(Math.random() * 1000);
+
+        // 1. 안드로이드에 다운로드 시작 알림 및 파일 생성
+        (window as any).AndroidBlobDownloader.startDownload(downloadId, fileName, "application/pdf");
+
+        let offset = 0;
         const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64data = reader.result as string;
-          (window as any).AndroidBlobDownloader.saveBase64File(base64data, "application/pdf", fileName);
+
+        const readNextChunk = () => {
+          if (offset >= blob.size) {
+            // 3. 파일의 끝에 도달하면 다운로드 완료 알림
+            (window as any).AndroidBlobDownloader.finishDownload(downloadId, "application/pdf");
+            setIsDownloadingPdf(false); // 로딩 스피너 종료
+            return;
+          }
+
+          // 1MB 단위로 blob 자르기
+          const slice = blob.slice(offset, offset + CHUNK_SIZE);
+          
+          reader.onloadend = (e) => {
+            const dataUrl = e.target?.result as string;
+            if (dataUrl) {
+              // base64 헤더 부분(data:application/pdf;base64,)을 제거하고 순수 데이터만 추출
+              const base64Chunk = dataUrl.split(',')[1];
+              // 2. 안드로이드로 잘라낸 조각 전송
+              (window as any).AndroidBlobDownloader.saveChunk(downloadId, base64Chunk);
+            }
+            offset += CHUNK_SIZE;
+            readNextChunk(); // 다음 조각 전송을 위해 재귀 호출
+          };
+          reader.readAsDataURL(slice);
         };
-        reader.readAsDataURL(blob);
+
+        // 분할 전송 시작
+        readNextChunk();
+
       } else {
+        // 기존 웹 브라우저용 다운로드 로직
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -346,12 +381,13 @@ export default function MobileWorkItemDetailPage() {
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(blobUrl);
+        
+        setIsDownloadingPdf(false); // 로딩 스피너 종료
       }
     } catch (err) {
       console.error("다운로드 실패:", err);
       alert("다운로드 중 오류가 발생했습니다.");
-    } finally {
-      setIsDownloadingPdf(false); // 👈 다운로드 상태 끄기
+      setIsDownloadingPdf(false); // 예외 발생 시 로딩 스피너 종료
     }
   };
 
