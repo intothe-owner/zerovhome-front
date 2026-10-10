@@ -192,7 +192,7 @@ export default function BoardConfigManager() {
                   configs.map((config, index) => (
                     <tr key={config.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                       <td className="py-4 px-4 text-center text-slate-400 font-medium">{index + 1}</td>
-                      <td className="py-4 px-4 font-bold text-slate-800">{config.boardName}</td>
+                      <td className="py-4 px-4 font-bold text-slate-800">{config.boardName}(config.tableName)</td>
                       <td className="py-4 px-4 text-center">
                         <span className={`px-2.5 py-1 rounded-md text-[11px] font-extrabold ${config.boardType === 'GALLERY' ? 'bg-emerald-100 text-emerald-700' : config.boardType === 'FAQ' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}`}>{config.boardType}</span>
                       </td>
