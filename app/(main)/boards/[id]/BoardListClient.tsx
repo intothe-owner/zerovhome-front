@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import PostActionButtons from './[postId]/PostActionButtons'; // 💡 버튼 컴포넌트 임포트
 
 interface BoardListClientProps {
   boardId: string;
@@ -290,9 +291,20 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
                   </span>
                 </summary>
                 <div className="p-6 pt-2 bg-slate-50/50 border-t border-slate-100 text-slate-600 leading-relaxed">
-                  <div className="flex items-start gap-4">
-                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold shrink-0 mt-1">A</span>
-                    <div className="whitespace-pre-wrap pt-1" dangerouslySetInnerHTML={{ __html: post.content }} />
+                  <div className="flex flex-col w-full">
+                    {/* 답변 내용 영역 */}
+                    <div className="flex items-start gap-4">
+                      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold shrink-0 mt-1">A</span>
+                      <div className="whitespace-pre-wrap pt-1 flex-1" dangerouslySetInnerHTML={{ __html: post.content }} />
+                    </div>
+                    {/* 💡 추가된 수정/삭제 버튼 영역 */}
+                    <div className="flex justify-end mt-6">
+                      <PostActionButtons 
+                        boardId={boardId} 
+                        postId={post.id} 
+                        boardConfig={boardConfig} 
+                      />
+                    </div>
                   </div>
                 </div>
               </details>
