@@ -275,42 +275,46 @@ export default function BoardListClient({ boardId, boardConfig, initialPosts, in
 
         {/* --- FAQ --- */}
         {boardType === 'FAQ' && (
-          <div className="space-y-4">
-            {posts.map((post: any) => (
-              <details key={post.id} className="group bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <summary className="cursor-pointer flex items-center justify-between p-5 list-none hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center gap-4 pr-4">
-                    <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-bold shrink-0">Q</span>
-                    <span className="font-semibold text-slate-800">
-                      {post.category && <span className="text-slate-400 mr-2">[{post.category}]</span>}
-                      {post.title}
-                    </span>
-                  </div>
-                  <span className="text-slate-400 group-open:rotate-180 transition-transform duration-300 shrink-0">
-                    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                  </span>
-                </summary>
-                <div className="p-6 pt-2 bg-slate-50/50 border-t border-slate-100 text-slate-600 leading-relaxed">
-                  <div className="flex flex-col w-full">
-                    {/* 답변 내용 영역 */}
-                    <div className="flex items-start gap-4">
-                      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold shrink-0 mt-1">A</span>
-                      <div className="whitespace-pre-wrap pt-1 flex-1" dangerouslySetInnerHTML={{ __html: post.content }} />
-                    </div>
-                    {/* 💡 추가된 수정/삭제 버튼 영역 */}
-                    <div className="flex justify-end mt-6">
-                      <PostActionButtons 
-                        boardId={boardId} 
-                        postId={post.id} 
-                        boardConfig={boardConfig} 
-                      />
-                    </div>
-                  </div>
-                </div>
-              </details>
-            ))}
+  <div className="space-y-4">
+    {posts.map((post: any) => (
+      <details key={post.id} className="group bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <summary className="cursor-pointer flex items-start justify-between p-5 list-none hover:bg-slate-50 transition-colors">
+          {/* 💡 수정한 부분: items-center -> items-start로 변경, text-left 추가 */}
+          <div className="flex items-start gap-4 pr-4 text-left">
+            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-bold shrink-0">Q</span>
+            <span className="font-semibold text-slate-800 mt-1">
+              {post.category && <span className="text-slate-400 mr-2">[{post.category}]</span>}
+              {post.title}
+            </span>
           </div>
-        )}
+          <span className="text-slate-400 group-open:rotate-180 transition-transform duration-300 shrink-0 mt-1">
+            <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </span>
+        </summary>
+        
+        <div className="p-6 pt-2 bg-slate-50/50 border-t border-slate-100 text-slate-600 leading-relaxed">
+          <div className="flex flex-col w-full text-left">
+            {/* 답변 내용 영역 */}
+            <div className="flex items-start gap-4">
+              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold shrink-0 mt-1">A</span>
+              <div className="whitespace-pre-wrap pt-1 flex-1" dangerouslySetInnerHTML={{ __html: post.content }} />
+            </div>
+            {/* 수정/삭제 버튼 영역 */}
+            <div className="flex justify-end mt-6">
+              <PostActionButtons 
+                boardId={boardId} 
+                postId={post.id} 
+                boardConfig={boardConfig} 
+              />
+            </div>
+          </div>
+        </div>
+      </details>
+    ))}
+  </div>
+)}
 
         {/* 페이지네이션 영역 */}
         {totalPages > 0 && (
