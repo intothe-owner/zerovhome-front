@@ -15,6 +15,11 @@ export async function generateMetadata(): Promise<Metadata> {
         description: json.data.metaDescription,
         keywords: json.data.metaKeywords,
         icons: { icon: json.data.faviconUrl || "/favicon.ico" },
+        verification: {
+          other: {
+            "naver-site-verification": ["bf8c4839b0cd4bb44ccc049e696bb48e060ecf21"],
+          },
+        },
       };
     }
   } catch (e) {}
