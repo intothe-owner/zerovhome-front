@@ -16,6 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
         keywords: json.data.metaKeywords,
         icons: { icon: json.data.faviconUrl || "/favicon.ico" },
         verification: {
+          google:"BTFDWNS0w5LozBehn8L8H4VxgBdn_fAAiUPfcFGSmdQ",
           other: {
             "naver-site-verification": ["bf8c4839b0cd4bb44ccc049e696bb48e060ecf21"],
           },
