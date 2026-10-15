@@ -10,7 +10,6 @@ export async function generateMetadata(): Promise<Metadata> {
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/settings`, { cache: "no-store" });
     const json = await res.json();
     if (json.success && json.data) {
-      console.log(1);
       return {
         title: json.data.siteName,
         description: json.data.metaDescription,
@@ -39,19 +38,16 @@ export default async function MainLayout({ children }: { children: React.ReactNo
       cache: "no-store" 
     });
     const adminCheckJson = await adminCheckRes.json();
-    console.log(2);
     if (adminCheckJson.success) {
       hasAdmin = adminCheckJson.hasAdmin;
     }
-    console.log(adminCheckJson)
   } catch (error) {
     console.error("관리자 확인 통신 실패:", error);
   }
 
   // 2. 관리자가 없으면 /setup 으로 강제 이동
   if (!hasAdmin) {
-    console.log(3);
-    //redirect("/setup");
+    redirect("/setup");
   }
 
   // 3. 이후 기존 데이터 페칭 로직 정상 실행
