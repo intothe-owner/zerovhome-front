@@ -47,7 +47,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
   // 2. 관리자가 없으면 /setup 으로 강제 이동
   if (!hasAdmin) {
-    //redirect("/setup");
+    redirect("/setup");
   }
 
   // 3. 이후 기존 데이터 페칭 로직 정상 실행
