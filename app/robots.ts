@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: '*',
       allow: '/',
     },
-    sitemap: 'http://zerov.co.kr/sitemap.xml',
+    sitemap: 'https://www.zerov.co.kr/sitemap.xml',
   }
 }
