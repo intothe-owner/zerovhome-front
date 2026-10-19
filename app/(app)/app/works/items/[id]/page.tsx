@@ -91,9 +91,9 @@ export default function MobileWorkItemDetailPage() {
         const workItem = res.data.data;
         setItem(workItem);
 
-        // 1. 기존 보고서 데이터 복원
-        setTextAnswers(workItem.reportResult?.textAnswers || {});
-
+        // 1. 기존 보고서 데이터 복원 (이후 폼 설정과 병합하기 위해 임시 저장)
+        const loadedTextAnswers = workItem.reportResult?.textAnswers || {};
+        
         const loadedImageAnswers = workItem.reportResult?.imageAnswers || {};
         setImageAnswers(loadedImageAnswers);
 
@@ -145,7 +145,35 @@ export default function MobileWorkItemDetailPage() {
           if (validCategories.length > 0) {
             setActiveCategory(validCategories[0]);
           }
+
+          // 💡 [핵심 구현] 엑셀 연동 및 고정값 자동입력 병합 로직
+          const updatedTextAnswers = { ...loadedTextAnswers };
+          const textFieldsConfig = formData.textFields || [];
+
+          textFieldsConfig.forEach((field: any) => {
+            if (updatedTextAnswers[field.name] === undefined) {
+              if (field.isAutoFill) {
+                if (field.mappedExcelColumn) {
+                  // 엑셀에서 가져오기
+                  updatedTextAnswers[field.name] = workItem.rowData?.[field.mappedExcelColumn] || "";
+                } else if (field.defaultValue) {
+                  // 고정값 가져오기
+                  updatedTextAnswers[field.name] = field.defaultValue;
+                } else {
+                  updatedTextAnswers[field.name] = "";
+                }
+              } else {
+                updatedTextAnswers[field.name] = "";
+              }
+            }
+          });
+          
+          setTextAnswers(updatedTextAnswers);
+
+        } else {
+          setTextAnswers(loadedTextAnswers);
         }
+
         if (surveyRes?.data?.ok && surveyRes.data.data) {
           setSurveyForm(surveyRes.data.data);
         }
@@ -319,11 +347,9 @@ export default function MobileWorkItemDetailPage() {
     }
   };
 
-  // --- 📄 PDF 다운로드 핸들러 (인증 헤더 추가) ---
   // --- 📄 PDF 다운로드 핸들러 (직접 URL 이동 방식) ---
   const handleDownloadPdf = (url: string, fileName: string) => {
     try {
-      // 💡 [핵심 수정] AndroidBlobDownloader가 아니라 'Android' 객체를 찾도록 변경
       const isAndroidApp = typeof window !== 'undefined' && (window as any).Android;
 
       if (isAndroidApp && typeof (window as any).Android.downloadFromUrl === 'function') {
@@ -376,12 +402,11 @@ export default function MobileWorkItemDetailPage() {
 
       <main className="p-4 space-y-6 max-w-md mx-auto">
 
-        {/* 💡 [핵심 수정] 다운로드 버튼 */}
+        {/* 다운로드 버튼 */}
         <section>
           {item?.reportResult ? (
             <button
               onClick={() => {
-                // DB에 저장된 pdfPath가 있으면 그 URL을 직접 사용하고, 없으면 백엔드 API로 요청
                 const pdfDownloadUrl = item.reportResult.pdfPath 
                   ? item.reportResult.pdfPath 
                   : `${API_BASE_URL}/api/work-items/${itemId}/pdf`;
@@ -389,7 +414,7 @@ export default function MobileWorkItemDetailPage() {
                   
                 handleDownloadPdf(pdfDownloadUrl, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`);
               }}
-              disabled={isDownloadingPdf} // 👈 다운로드 중 버튼 비활성화
+              disabled={isDownloadingPdf}
               className={`w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm transition ${
                 isDownloadingPdf ? "opacity-70 cursor-not-allowed" : "hover:bg-red-100"
               }`}
@@ -466,7 +491,14 @@ export default function MobileWorkItemDetailPage() {
               <div className="space-y-4 border-b border-gray-100 pb-5 mb-5">
                 {textFields.map((field: any, idx: number) => (
                   <div key={idx} className="space-y-1">
-                    <label className="block text-xs font-bold text-gray-700">{field.name}</label>
+                    <label className="block text-xs font-bold text-gray-700">
+                      {field.name}
+                      {field.isAutoFill && (
+                        <span className="ml-1 text-[10px] font-medium text-blue-500">
+                          (자동입력)
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="text"
                       value={textAnswers[field.name] || ""}
