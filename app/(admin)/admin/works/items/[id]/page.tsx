@@ -89,9 +89,8 @@ export default function WorkItemDetailPage() {
                 const workItem = res.data.data;
                 setItem(workItem);
 
-                // 1. 기존 데이터 복원
-                setTextAnswers(workItem.reportResult?.textAnswers || {});
-
+                // 이미 DB에 저장된 기존 텍스트 및 이미지 답변 보존
+                const loadedTextAnswers = workItem.reportResult?.textAnswers || {};
                 const loadedImageAnswers = workItem.reportResult?.imageAnswers || {};
                 setImageAnswers(loadedImageAnswers);
 
@@ -143,7 +142,38 @@ export default function WorkItemDetailPage() {
                     if (validCategories.length > 0) {
                         setActiveCategory(validCategories[0]);
                     }
+
+                    // 💡 [핵심 구현] 엑셀 연동 및 고정값 자동입력 로직
+                    const updatedTextAnswers = { ...loadedTextAnswers };
+                    const textFieldsConfig = formData.textFields || [];
+
+                    textFieldsConfig.forEach((field: any) => {
+                        // DB에 작성된 이력이 없는 초기 항목일 경우에만 기본값을 채워넣습니다.
+                        // (사용자가 의도적으로 내용을 지우고 저장한 경우를 존중하기 위함)
+                        if (updatedTextAnswers[field.name] === undefined) {
+                            if (field.isAutoFill) {
+                                if (field.mappedExcelColumn) {
+                                    // 1. 엑셀 연동 데이터 삽입
+                                    updatedTextAnswers[field.name] = workItem.rowData?.[field.mappedExcelColumn] || "";
+                                } else if (field.defaultValue) {
+                                    // 2. 관리자가 직접 입력한 고정값 삽입
+                                    updatedTextAnswers[field.name] = field.defaultValue;
+                                } else {
+                                    updatedTextAnswers[field.name] = "";
+                                }
+                            } else {
+                                updatedTextAnswers[field.name] = "";
+                            }
+                        }
+                    });
+                    
+                    // 완성된 텍스트 데이터를 상태에 적용
+                    setTextAnswers(updatedTextAnswers);
+
+                } else {
+                    setTextAnswers(loadedTextAnswers);
                 }
+
                 if (surveyRes?.data?.ok && surveyRes.data.data) {
                     setSurveyForm(surveyRes.data.data);
                 }
@@ -329,11 +359,11 @@ export default function WorkItemDetailPage() {
         }
     };
 
-    // 💡 [수정됨] 다운로드 시에도 인증 헤더를 포함하도록 수정
+    // 다운로드 시 인증 헤더 포함
     const handleDownloadPdf = async (url: string, fileName: string) => {
         try {
             const response = await fetch(url, {
-                headers: getAuthHeaders() // 백엔드 통신 시 토큰 필수
+                headers: getAuthHeaders()
             });
             
             if (!response.ok) {
@@ -406,7 +436,7 @@ export default function WorkItemDetailPage() {
                 </div>
             </div>
 
-            {/* 💡 [핵심 수정] 카테고리 로직(pdfPath 파싱) 제거하고 단순하게 reportResult의 유무로만 판단하여 버튼 렌더링 */}
+            {/* 작업 결과 보고서 (PDF 다운로드) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 <h3 className="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
                     <Download size={20} className="text-red-500" /> 작업 결과 보고서 (PDF 다운로드)
@@ -435,7 +465,15 @@ export default function WorkItemDetailPage() {
                             const isFull = field.layout === 'FULL';
                             return (
                                 <div key={idx} className={`space-y-1.5 ${isFull ? 'md:col-span-2' : ''}`}>
-                                    <label className="block text-sm font-bold text-slate-700">{field.name}</label>
+                                    <label className="block text-sm font-bold text-slate-700">
+                                        {field.name}
+                                        {/* 자동입력/고정값이 매핑된 경우 사용자에게 라벨 표시 */}
+                                        {field.isAutoFill && (
+                                            <span className="ml-2 text-xs font-medium text-indigo-500">
+                                                (자동입력)
+                                            </span>
+                                        )}
+                                    </label>
                                     <input
                                         type="text"
                                         value={textAnswers[field.name] || ""}
