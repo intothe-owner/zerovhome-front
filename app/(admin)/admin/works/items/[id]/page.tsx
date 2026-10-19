@@ -71,7 +71,7 @@ export default function WorkItemDetailPage() {
 
     const getAuthHeaders = () => {
         const rawToken = localStorage.getItem("token") || "";
-        const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
+        const cleanToken = rawToken.replace(/^['"]|['"]$/g, '');
         return {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${cleanToken}`
@@ -148,15 +148,20 @@ export default function WorkItemDetailPage() {
                     const textFieldsConfig = formData.textFields || [];
 
                     textFieldsConfig.forEach((field: any) => {
-                        // DB에 작성된 이력이 없는 초기 항목일 경우에만 기본값을 채워넣습니다.
-                        // (사용자가 의도적으로 내용을 지우고 저장한 경우를 존중하기 위함)
                         if (updatedTextAnswers[field.name] === undefined) {
                             if (field.isAutoFill) {
                                 if (field.mappedExcelColumn) {
-                                    // 1. 엑셀 연동 데이터 삽입
-                                    updatedTextAnswers[field.name] = workItem.rowData?.[field.mappedExcelColumn] || "";
+
+                                    // 💡 1번 항목 텍스트
+                                    const val1 = workItem.rowData?.[field.mappedExcelColumn] || "";
+
+                                    // 💡 2번 항목 텍스트 (있는 경우에만)
+                                    const val2 = field.mappedExcelColumn2 ? (workItem.rowData?.[field.mappedExcelColumn2] || "") : "";
+
+                                    // 두 항목을 조합 (val2가 있으면 띄어쓰기 포함해서 붙임)
+                                    updatedTextAnswers[field.name] = val2 ? `${val1} ${val2}`.trim() : val1.trim();
+
                                 } else if (field.defaultValue) {
-                                    // 2. 관리자가 직접 입력한 고정값 삽입
                                     updatedTextAnswers[field.name] = field.defaultValue;
                                 } else {
                                     updatedTextAnswers[field.name] = "";
@@ -166,7 +171,7 @@ export default function WorkItemDetailPage() {
                             }
                         }
                     });
-                    
+
                     // 완성된 텍스트 데이터를 상태에 적용
                     setTextAnswers(updatedTextAnswers);
 
@@ -318,7 +323,7 @@ export default function WorkItemDetailPage() {
             );
         }
     };
-    
+
     const handleSaveEditedImage = (editedImageObject: any) => {
         const newBase64 = editedImageObject.imageBase64;
         const key = editImageTarget?.key;
@@ -365,11 +370,11 @@ export default function WorkItemDetailPage() {
             const response = await fetch(url, {
                 headers: getAuthHeaders()
             });
-            
+
             if (!response.ok) {
                 throw new Error(`다운로드 요청 실패: ${response.status}`);
             }
-            
+
             const blob = await response.blob();
             const blobUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -441,7 +446,7 @@ export default function WorkItemDetailPage() {
                 <h3 className="text-lg font-bold text-slate-800 border-b pb-3 flex items-center gap-2">
                     <Download size={20} className="text-red-500" /> 작업 결과 보고서 (PDF 다운로드)
                 </h3>
-                
+
                 {item?.reportResult ? (
                     <div className="flex flex-wrap gap-3">
                         <button
@@ -888,7 +893,7 @@ export default function WorkItemDetailPage() {
                     />
                 </div>
             )}
-            
+
             {/* 서명 입력 모달 창 */}
             {isSignModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

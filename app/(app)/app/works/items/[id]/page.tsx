@@ -93,7 +93,7 @@ export default function MobileWorkItemDetailPage() {
 
         // 1. 기존 보고서 데이터 복원 (이후 폼 설정과 병합하기 위해 임시 저장)
         const loadedTextAnswers = workItem.reportResult?.textAnswers || {};
-        
+
         const loadedImageAnswers = workItem.reportResult?.imageAnswers || {};
         setImageAnswers(loadedImageAnswers);
 
@@ -154,10 +154,17 @@ export default function MobileWorkItemDetailPage() {
             if (updatedTextAnswers[field.name] === undefined) {
               if (field.isAutoFill) {
                 if (field.mappedExcelColumn) {
-                  // 엑셀에서 가져오기
-                  updatedTextAnswers[field.name] = workItem.rowData?.[field.mappedExcelColumn] || "";
+
+                  // 💡 1번 항목 텍스트
+                  const val1 = workItem.rowData?.[field.mappedExcelColumn] || "";
+
+                  // 💡 2번 항목 텍스트 (있는 경우에만)
+                  const val2 = field.mappedExcelColumn2 ? (workItem.rowData?.[field.mappedExcelColumn2] || "") : "";
+
+                  // 두 항목을 조합 (val2가 있으면 띄어쓰기 포함해서 붙임)
+                  updatedTextAnswers[field.name] = val2 ? `${val1} ${val2}`.trim() : val1.trim();
+
                 } else if (field.defaultValue) {
-                  // 고정값 가져오기
                   updatedTextAnswers[field.name] = field.defaultValue;
                 } else {
                   updatedTextAnswers[field.name] = "";
@@ -167,7 +174,7 @@ export default function MobileWorkItemDetailPage() {
               }
             }
           });
-          
+
           setTextAnswers(updatedTextAnswers);
 
         } else {
@@ -361,7 +368,7 @@ export default function MobileWorkItemDetailPage() {
         link.href = url;
         link.target = '_blank'; // 새 탭에서 열기
         link.download = fileName;
-        
+
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -407,17 +414,16 @@ export default function MobileWorkItemDetailPage() {
           {item?.reportResult ? (
             <button
               onClick={() => {
-                const pdfDownloadUrl = item.reportResult.pdfPath 
-                  ? item.reportResult.pdfPath 
+                const pdfDownloadUrl = item.reportResult.pdfPath
+                  ? item.reportResult.pdfPath
                   : `${API_BASE_URL}/api/work-items/${itemId}/pdf`;
                 console.log(pdfDownloadUrl);
-                  
+
                 handleDownloadPdf(pdfDownloadUrl, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`);
               }}
               disabled={isDownloadingPdf}
-              className={`w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm transition ${
-                isDownloadingPdf ? "opacity-70 cursor-not-allowed" : "hover:bg-red-100"
-              }`}
+              className={`w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm transition ${isDownloadingPdf ? "opacity-70 cursor-not-allowed" : "hover:bg-red-100"
+                }`}
             >
               {isDownloadingPdf ? (
                 <>
@@ -426,7 +432,7 @@ export default function MobileWorkItemDetailPage() {
                 </>
               ) : (
                 <>
-                  <Download size={16} /> 
+                  <Download size={16} />
                   작업 결과 보고서 PDF 다운로드
                 </>
               )}
@@ -476,8 +482,8 @@ export default function MobileWorkItemDetailPage() {
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
                   className={`flex-1 py-2.5 text-[13px] font-bold rounded-lg transition-all ${activeCategory === cat
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
                     }`}
                 >
                   {cat}
