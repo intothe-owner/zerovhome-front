@@ -4,15 +4,16 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
-import { ArrowLeft, FileText, Type, Image as ImageIcon, Trash2, Save, FolderKanban, Link as LinkIcon, PenTool } from "lucide-react";
+import { ArrowLeft, FileText, Type, Image as ImageIcon, Trash2, Save, FolderKanban, Link as LinkIcon, PenTool, Plus } from "lucide-react";
 
-// 💡 텍스트 필드 타입 정의 (고정값 defaultValue 속성 추가)
+// 💡 텍스트 필드 타입 정의 (두 번째 엑셀 컬럼 속성 추가)
 type TextField = {
   name: string;
   layout: 'FULL' | 'HALF';
   isAutoFill?: boolean;
   mappedExcelColumn?: string;
-  defaultValue?: string; // 👈 새로 추가: 직접 입력한 고정값
+  mappedExcelColumn2?: string; // 👈 새로 추가: 두 번째 연결할 엑셀 컬럼
+  defaultValue?: string; 
 };
 
 export default function ReportFormConfigPage() {
@@ -36,7 +37,8 @@ export default function ReportFormConfigPage() {
   // 자동입력 & 고정값 관련 상태
   const [isTextAutoFill, setIsTextAutoFill] = useState(false);
   const [textMappedExcelColumn, setTextMappedExcelColumn] = useState("");
-  const [textDefaultValue, setTextDefaultValue] = useState(""); // 👈 새로 추가: 관리자 직접 입력값
+  const [textMappedExcelColumn2, setTextMappedExcelColumn2] = useState(""); // 👈 두 번째 컬럼 상태 추가
+  const [textDefaultValue, setTextDefaultValue] = useState(""); 
 
   const [newImage, setNewImage] = useState("");
   const [imageLayout, setImageLayout] = useState<'FULL' | 'HALF'>("HALF");
@@ -93,15 +95,17 @@ export default function ReportFormConfigPage() {
         name: newText.trim(), 
         layout: textLayout,
         isAutoFill: isTextAutoFill,
-        // 💡 엑셀 매핑값이 있으면 엑셀 컬럼을, 없으면 직접 입력한 고정값을 저장
+        // 💡 1, 2번째 컬럼 모두 저장
         mappedExcelColumn: isTextAutoFill && textMappedExcelColumn ? textMappedExcelColumn : undefined,
+        mappedExcelColumn2: isTextAutoFill && textMappedExcelColumn && textMappedExcelColumn2 ? textMappedExcelColumn2 : undefined,
         defaultValue: isTextAutoFill && !textMappedExcelColumn ? textDefaultValue.trim() : undefined
       }]);
       // 상태 초기화
       setNewText("");
       setIsTextAutoFill(false);
       setTextMappedExcelColumn("");
-      setTextDefaultValue(""); // 초기화
+      setTextMappedExcelColumn2(""); // 👈 초기화 추가
+      setTextDefaultValue(""); 
     } else if (type === "image" && newImage.trim()) {
       setImageFields([...imageFields, { name: newImage.trim(), layout: imageLayout }]);
       setNewImage("");
@@ -177,12 +181,12 @@ export default function ReportFormConfigPage() {
         {/* 텍스트 필드 설정 카드 */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <Type size={20} className="text-blue-500" /> 텍스트 입력 항목 (엑셀 연동 및 고정값)
+            <Type size={20} className="text-blue-500" /> 텍스트 입력 항목 (엑셀 2중 연동 지원)
           </h3>
           <div className="flex flex-col gap-3">
             <input 
               type="text" 
-              placeholder="항목명 (예: 대표명, 경로당명)" 
+              placeholder="항목명 (예: 전체 주소, 용역명)" 
               value={newText} 
               onChange={e => setNewText(e.target.value)} 
               className="border border-slate-300 px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 bg-slate-50" 
@@ -211,25 +215,47 @@ export default function ReportFormConfigPage() {
               <button onClick={() => handleAddField("text")} className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-700 transition">추가</button>
             </div>
 
-            {/* 💡 자동입력 체크 시 노출되는 영역 */}
+            {/* 💡 자동입력 체크 시 노출되는 영역 (2개 컬럼 지원) */}
             {isTextAutoFill && (
               <div className="flex flex-col gap-2 bg-indigo-50 border border-indigo-100 p-3 rounded-xl animate-in fade-in slide-in-from-top-1">
-                <div className="flex items-center gap-2">
-                  <LinkIcon size={16} className="text-indigo-500" />
-                  <select
-                    value={textMappedExcelColumn}
-                    onChange={e => setTextMappedExcelColumn(e.target.value)}
-                    className="w-full bg-white border border-indigo-200 text-sm px-3 py-2 rounded-lg text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
-                  >
-                    <option value="">직접 고정값 입력 (매핑 안함)</option>
-                    {excelHeaders.length === 0 && <option disabled>업로드된 엑셀 데이터가 없습니다.</option>}
-                    {excelHeaders.map(header => (
-                      <option key={header} value={header}>{header}</option>
-                    ))}
-                  </select>
+                <div className="flex items-start md:items-center gap-2 flex-col md:flex-row">
+                  <div className="flex items-center gap-2 w-full">
+                    <LinkIcon size={16} className="text-indigo-500 shrink-0" />
+                    <select
+                      value={textMappedExcelColumn}
+                      onChange={e => {
+                        setTextMappedExcelColumn(e.target.value);
+                        if (!e.target.value) setTextMappedExcelColumn2(""); // 첫번째를 지우면 두번째도 초기화
+                      }}
+                      className="w-full bg-white border border-indigo-200 text-sm px-3 py-2 rounded-lg text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                    >
+                      <option value="">직접 고정값 입력 (매핑 안함)</option>
+                      {excelHeaders.length === 0 && <option disabled>업로드된 엑셀 데이터가 없습니다.</option>}
+                      {excelHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* 💡 첫 번째 엑셀 항목이 선택된 경우에만 두 번째 선택란 표시 */}
+                  {textMappedExcelColumn !== "" && (
+                    <div className="flex items-center gap-2 w-full md:pl-0 pl-6">
+                      <Plus size={16} className="text-indigo-400 shrink-0" />
+                      <select
+                        value={textMappedExcelColumn2}
+                        onChange={e => setTextMappedExcelColumn2(e.target.value)}
+                        className="w-full bg-white border border-indigo-200 text-sm px-3 py-2 rounded-lg text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                      >
+                        <option value="">추가 연결 안함 (선택)</option>
+                        {excelHeaders.map(header => (
+                          <option key={`second_${header}`} value={header}>{header}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
-                {/* 💡 직접 고정값 입력을 선택한 경우 나타나는 텍스트 박스 */}
+                {/* 직접 고정값 입력 텍스트 박스 */}
                 {textMappedExcelColumn === "" && (
                   <div className="flex items-center gap-2 pl-6 mt-1 animate-in fade-in">
                     <PenTool size={14} className="text-slate-400" />
@@ -250,25 +276,31 @@ export default function ReportFormConfigPage() {
             {textFields.length === 0 && <p className="text-sm text-slate-400 text-center py-4">추가된 항목이 없습니다.</p>}
             {textFields.map((field, i) => (
               <div key={i} className="flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-0.5 w-full pr-4">
                   <div className="font-semibold text-slate-700 flex items-center gap-2">
                     {field.name} 
-                    <span className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded-md font-normal">
+                    <span className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded-md font-normal shrink-0">
                       {field.layout === 'FULL' ? '전체 칸' : '절반 칸'}
                     </span>
                   </div>
-                  {/* 💡 추가된 필드의 연동/고정값 정보 표시 */}
+                  {/* 💡 추가된 필드의 연동/고정값 정보 표시 (2개 모두 표시) */}
                   {field.isAutoFill && (
-                    <span className="text-xs font-medium flex items-center gap-1 mt-1 text-indigo-600">
+                    <span className="text-xs font-medium flex items-center gap-1 mt-1 text-indigo-600 truncate">
                       {field.mappedExcelColumn ? (
-                        <><LinkIcon size={12} /> [{field.mappedExcelColumn}] 자동 연동</>
+                        <>
+                          <LinkIcon size={12} className="shrink-0" /> 
+                          <span className="truncate">
+                            [{field.mappedExcelColumn}] 
+                            {field.mappedExcelColumn2 && ` + [${field.mappedExcelColumn2}]`} 연동됨
+                          </span>
+                        </>
                       ) : (
-                        <><PenTool size={12} /> 고정값: {field.defaultValue || "(빈 값)"}</>
+                        <><PenTool size={12} className="shrink-0" /> 고정값: {field.defaultValue || "(빈 값)"}</>
                       )}
                     </span>
                   )}
                 </div>
-                <button onClick={() => setTextFields(textFields.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-red-500 p-1">
+                <button onClick={() => setTextFields(textFields.filter((_, idx) => idx !== i))} className="text-slate-400 hover:text-red-500 p-1 shrink-0">
                   <Trash2 size={18} />
                 </button>
               </div>
