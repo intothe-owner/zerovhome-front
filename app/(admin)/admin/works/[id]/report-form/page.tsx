@@ -4,14 +4,15 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
-import { ArrowLeft, FileText, Type, Image as ImageIcon, Trash2, Save, FolderKanban, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, FileText, Type, Image as ImageIcon, Trash2, Save, FolderKanban, Link as LinkIcon, PenTool } from "lucide-react";
 
-// 💡 텍스트 필드 타입 정의 (자동입력 속성 추가)
+// 💡 텍스트 필드 타입 정의 (고정값 defaultValue 속성 추가)
 type TextField = {
   name: string;
   layout: 'FULL' | 'HALF';
   isAutoFill?: boolean;
   mappedExcelColumn?: string;
+  defaultValue?: string; // 👈 새로 추가: 직접 입력한 고정값
 };
 
 export default function ReportFormConfigPage() {
@@ -26,15 +27,16 @@ export default function ReportFormConfigPage() {
   const [textFields, setTextFields] = useState<TextField[]>([]);
   const [imageFields, setImageFields] = useState<{name: string, layout: 'FULL' | 'HALF'}[]>([]);
   
-  // 💡 엑셀 헤더 목록 상태 추가
   const [excelHeaders, setExcelHeaders] = useState<string[]>([]);
 
   // 텍스트 필드 입력 상태
   const [newText, setNewText] = useState("");
   const [textLayout, setTextLayout] = useState<'FULL' | 'HALF'>("HALF");
-  // 💡 자동입력 관련 상태 추가
+  
+  // 자동입력 & 고정값 관련 상태
   const [isTextAutoFill, setIsTextAutoFill] = useState(false);
   const [textMappedExcelColumn, setTextMappedExcelColumn] = useState("");
+  const [textDefaultValue, setTextDefaultValue] = useState(""); // 👈 새로 추가: 관리자 직접 입력값
 
   const [newImage, setNewImage] = useState("");
   const [imageLayout, setImageLayout] = useState<'FULL' | 'HALF'>("HALF");
@@ -60,7 +62,6 @@ export default function ReportFormConfigPage() {
         const currentSite = siteRes.data.data.find((s: any) => s.id === Number(siteId));
         if (currentSite) {
           setSiteTitle(currentSite.title);
-          // 💡 현장 정보에서 엑셀 헤더 목록 가져와 저장
           setExcelHeaders(currentSite.excelHeaders || []);
         }
 
@@ -91,14 +92,16 @@ export default function ReportFormConfigPage() {
       setTextFields([...textFields, { 
         name: newText.trim(), 
         layout: textLayout,
-        // 💡 텍스트 필드 추가 시 자동입력 정보 포함
         isAutoFill: isTextAutoFill,
-        mappedExcelColumn: isTextAutoFill ? textMappedExcelColumn : undefined
+        // 💡 엑셀 매핑값이 있으면 엑셀 컬럼을, 없으면 직접 입력한 고정값을 저장
+        mappedExcelColumn: isTextAutoFill && textMappedExcelColumn ? textMappedExcelColumn : undefined,
+        defaultValue: isTextAutoFill && !textMappedExcelColumn ? textDefaultValue.trim() : undefined
       }]);
       // 상태 초기화
       setNewText("");
       setIsTextAutoFill(false);
       setTextMappedExcelColumn("");
+      setTextDefaultValue(""); // 초기화
     } else if (type === "image" && newImage.trim()) {
       setImageFields([...imageFields, { name: newImage.trim(), layout: imageLayout }]);
       setNewImage("");
@@ -174,12 +177,12 @@ export default function ReportFormConfigPage() {
         {/* 텍스트 필드 설정 카드 */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <Type size={20} className="text-blue-500" /> 텍스트 입력 항목 (엑셀 연동 지원)
+            <Type size={20} className="text-blue-500" /> 텍스트 입력 항목 (엑셀 연동 및 고정값)
           </h3>
           <div className="flex flex-col gap-3">
             <input 
               type="text" 
-              placeholder="항목명 (예: 경로당명, 특이사항)" 
+              placeholder="항목명 (예: 대표명, 경로당명)" 
               value={newText} 
               onChange={e => setNewText(e.target.value)} 
               className="border border-slate-300 px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 bg-slate-50" 
@@ -195,7 +198,6 @@ export default function ReportFormConfigPage() {
                 <option value="FULL">1칸 배열</option>
               </select>
 
-              {/* 💡 자동입력 체크박스 */}
               <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 cursor-pointer border border-slate-300 px-3 py-2 rounded-xl bg-slate-50 hover:bg-indigo-50 transition">
                 <input 
                   type="checkbox" 
@@ -203,28 +205,43 @@ export default function ReportFormConfigPage() {
                   onChange={e => setIsTextAutoFill(e.target.checked)}
                   className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                 />
-                엑셀 자동입력
+                자동입력 설정
               </label>
               
               <button onClick={() => handleAddField("text")} className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-700 transition">추가</button>
             </div>
 
-            {/* 💡 자동입력 체크 시 노출되는 엑셀 항목 매핑 드롭다운 */}
+            {/* 💡 자동입력 체크 시 노출되는 영역 */}
             {isTextAutoFill && (
-              <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 p-3 rounded-xl animate-in fade-in slide-in-from-top-1">
-                <LinkIcon size={16} className="text-indigo-500" />
-                <select
-                  value={textMappedExcelColumn}
-                  onChange={e => setTextMappedExcelColumn(e.target.value)}
-                  className="w-full bg-white border border-indigo-200 text-sm px-3 py-2 rounded-lg text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
-                >
-                  {/* 요청하신 '직접 입력'을 기본 옵션으로 추가 */}
-                  <option value="">직접 입력 (매핑 안함)</option>
-                  {excelHeaders.length === 0 && <option disabled>업로드된 엑셀 데이터가 없습니다.</option>}
-                  {excelHeaders.map(header => (
-                    <option key={header} value={header}>{header}</option>
-                  ))}
-                </select>
+              <div className="flex flex-col gap-2 bg-indigo-50 border border-indigo-100 p-3 rounded-xl animate-in fade-in slide-in-from-top-1">
+                <div className="flex items-center gap-2">
+                  <LinkIcon size={16} className="text-indigo-500" />
+                  <select
+                    value={textMappedExcelColumn}
+                    onChange={e => setTextMappedExcelColumn(e.target.value)}
+                    className="w-full bg-white border border-indigo-200 text-sm px-3 py-2 rounded-lg text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                  >
+                    <option value="">직접 고정값 입력 (매핑 안함)</option>
+                    {excelHeaders.length === 0 && <option disabled>업로드된 엑셀 데이터가 없습니다.</option>}
+                    {excelHeaders.map(header => (
+                      <option key={header} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 💡 직접 고정값 입력을 선택한 경우 나타나는 텍스트 박스 */}
+                {textMappedExcelColumn === "" && (
+                  <div className="flex items-center gap-2 pl-6 mt-1 animate-in fade-in">
+                    <PenTool size={14} className="text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="보고서에 고정으로 들어갈 내용을 입력 (예: 김남관)"
+                      value={textDefaultValue}
+                      onChange={e => setTextDefaultValue(e.target.value)}
+                      className="w-full bg-white border border-indigo-200 text-sm px-3 py-2 rounded-lg text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -240,11 +257,14 @@ export default function ReportFormConfigPage() {
                       {field.layout === 'FULL' ? '전체 칸' : '절반 칸'}
                     </span>
                   </div>
-                  {/* 💡 추가된 필드의 연동 정보 표시 */}
+                  {/* 💡 추가된 필드의 연동/고정값 정보 표시 */}
                   {field.isAutoFill && (
-                    <span className="text-xs text-indigo-600 font-medium flex items-center gap-1 mt-1">
-                      <LinkIcon size={12} /> 
-                      {field.mappedExcelColumn ? `[${field.mappedExcelColumn}] 자동 연동` : "직접 입력"}
+                    <span className="text-xs font-medium flex items-center gap-1 mt-1 text-indigo-600">
+                      {field.mappedExcelColumn ? (
+                        <><LinkIcon size={12} /> [{field.mappedExcelColumn}] 자동 연동</>
+                      ) : (
+                        <><PenTool size={12} /> 고정값: {field.defaultValue || "(빈 값)"}</>
+                      )}
                     </span>
                   )}
                 </div>
