@@ -16,6 +16,13 @@ type TextField = {
   defaultValue?: string; 
 };
 
+// 💡 이미지 필드 타입 정의 (레이아웃 3가지 및 두 번째 이름 추가)
+type ImageField = {
+  name: string;
+  name2?: string; // SPLIT 레이아웃 시 사용될 두 번째 사진명
+  layout: 'FULL' | 'HALF' | 'SPLIT';
+};
+
 export default function ReportFormConfigPage() {
   const params = useParams();
   const siteId = params.id;
@@ -26,7 +33,7 @@ export default function ReportFormConfigPage() {
   const [newCategory, setNewCategory] = useState("");
 
   const [textFields, setTextFields] = useState<TextField[]>([]);
-  const [imageFields, setImageFields] = useState<{name: string, layout: 'FULL' | 'HALF'}[]>([]);
+  const [imageFields, setImageFields] = useState<ImageField[]>([]);
   
   const [excelHeaders, setExcelHeaders] = useState<string[]>([]);
 
@@ -40,13 +47,15 @@ export default function ReportFormConfigPage() {
   const [textMappedExcelColumn2, setTextMappedExcelColumn2] = useState("");
   const [textDefaultValue, setTextDefaultValue] = useState(""); 
 
+  // 💡 사진 필드 입력 상태
   const [newImage, setNewImage] = useState("");
-  const [imageLayout, setImageLayout] = useState<'FULL' | 'HALF'>("HALF");
+  const [newImage2, setNewImage2] = useState(""); // 두 번째 사진명
+  const [imageLayout, setImageLayout] = useState<'FULL' | 'HALF' | 'SPLIT'>("SPLIT"); // 기본값을 SPLIT으로 설정
   
   const [loading, setLoading] = useState(false);
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
-  // 💡 드래그 앤 드롭을 위한 참조(ref) 상태 추가
+  // 드래그 앤 드롭을 위한 참조(ref)
   const dragTextItem = useRef<number | null>(null);
   const dragTextOverItem = useRef<number | null>(null);
   const dragImageItem = useRef<number | null>(null);
@@ -110,9 +119,24 @@ export default function ReportFormConfigPage() {
       setTextMappedExcelColumn("");
       setTextMappedExcelColumn2(""); 
       setTextDefaultValue(""); 
-    } else if (type === "image" && newImage.trim()) {
-      setImageFields([...imageFields, { name: newImage.trim(), layout: imageLayout }]);
+    } else if (type === "image") {
+      // 💡 사진 항목 추가 로직 세분화
+      if (imageLayout === "SPLIT") {
+        if (!newImage.trim() || !newImage2.trim()) {
+          alert("왼쪽과 오른쪽 사진의 항목명을 모두 입력해주세요.");
+          return;
+        }
+        setImageFields([...imageFields, { name: newImage.trim(), name2: newImage2.trim(), layout: imageLayout }]);
+      } else {
+        if (!newImage.trim()) {
+          alert("사진 항목명을 입력해주세요.");
+          return;
+        }
+        setImageFields([...imageFields, { name: newImage.trim(), layout: imageLayout }]);
+      }
+      // 초기화
       setNewImage("");
+      setNewImage2("");
     }
   };
 
@@ -136,7 +160,7 @@ export default function ReportFormConfigPage() {
     }
   };
 
-  // 💡 텍스트 필드 드래그 앤 드롭 핸들러
+  // 텍스트 필드 드래그 앤 드롭
   const handleTextDragStart = (e: React.DragEvent, index: number) => {
     dragTextItem.current = index;
     e.currentTarget.classList.add("opacity-50");
@@ -158,7 +182,7 @@ export default function ReportFormConfigPage() {
     dragTextOverItem.current = null;
   };
 
-  // 💡 이미지 필드 드래그 앤 드롭 핸들러
+  // 이미지 필드 드래그 앤 드롭
   const handleImageDragStart = (e: React.DragEvent, index: number) => {
     dragImageItem.current = index;
     e.currentTarget.classList.add("opacity-50");
@@ -322,11 +346,11 @@ export default function ReportFormConfigPage() {
             {textFields.map((field, i) => (
               <div 
                 key={i} 
-                draggable // 💡 드래그 활성화
+                draggable 
                 onDragStart={(e) => handleTextDragStart(e, i)}
                 onDragEnter={(e) => handleTextDragEnter(e, i)}
                 onDragEnd={handleTextDragEnd}
-                onDragOver={(e) => e.preventDefault()} // 드롭 허용
+                onDragOver={(e) => e.preventDefault()}
                 className="flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-move hover:bg-indigo-50/50 transition-colors"
               >
                 <div className="flex items-center gap-3 w-full pr-4">
@@ -363,37 +387,65 @@ export default function ReportFormConfigPage() {
           </div>
         </div>
 
-        {/* 공통 사진 필드 설정 카드 */}
+        {/* 💡 공통 사진 필드 설정 카드 업데이트 (레이아웃 3가지 지원) */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
           <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <ImageIcon size={20} className="text-emerald-500" /> 공통 사진 항목 (1장/2장 선택)
+            <ImageIcon size={20} className="text-emerald-500" /> 공통 사진 항목 설정
           </h3>
-          <div className="flex flex-col gap-2.5">
-            <input 
-              type="text" 
-              placeholder="사진 항목명 (예: 작업 전)" 
-              value={newImage} 
-              onChange={e => setNewImage(e.target.value)} 
-              className="border border-slate-300 px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 bg-slate-50" 
-            />
+          <div className="flex flex-col gap-3">
             <div className="flex gap-2">
               <select 
                 value={imageLayout} 
-                onChange={e => setImageLayout(e.target.value as any)} 
-                className="border border-slate-300 px-3 py-2 rounded-xl text-slate-700 bg-slate-50 flex-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onChange={e => {
+                  setImageLayout(e.target.value as any);
+                  setNewImage("");
+                  setNewImage2("");
+                }} 
+                className="border border-slate-300 px-3 py-2 rounded-xl text-slate-700 bg-slate-50 flex-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
               >
-                <option value="HALF">한 줄에 2장 배치 (작게)</option>
-                <option value="FULL">한 줄에 1장 배치 (크게)</option>
+                <option value="SPLIT">1. 한 줄에 두 장 (항목명 각각 지정)</option>
+                <option value="HALF">2. 한 줄에 두 장 (동일 항목명)</option>
+                <option value="FULL">3. 한 줄에 한 장 (크게)</option>
               </select>
-              <button onClick={() => handleAddField("image")} className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-emerald-700 transition">추가</button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              {imageLayout === 'SPLIT' ? (
+                <>
+                  <input 
+                    type="text" 
+                    placeholder="왼쪽 사진명 (예: 작업 전)" 
+                    value={newImage} 
+                    onChange={e => setNewImage(e.target.value)} 
+                    className="border border-slate-300 px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 bg-slate-50 flex-1 w-full" 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="오른쪽 사진명 (예: 작업 후)" 
+                    value={newImage2} 
+                    onChange={e => setNewImage2(e.target.value)} 
+                    className="border border-slate-300 px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 bg-slate-50 flex-1 w-full" 
+                  />
+                </>
+              ) : (
+                <input 
+                  type="text" 
+                  placeholder={imageLayout === 'HALF' ? "공통 항목명 (예: 에어컨 부품)" : "항목명 (예: 현장 전경)"} 
+                  value={newImage} 
+                  onChange={e => setNewImage(e.target.value)} 
+                  className="border border-slate-300 px-4 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 bg-slate-50 flex-1 w-full" 
+                />
+              )}
+              <button onClick={() => handleAddField("image")} className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 transition whitespace-nowrap">추가</button>
             </div>
           </div>
+
           <div className="space-y-2 pt-2">
-            {imageFields.length === 0 && <p className="text-sm text-slate-400 text-center py-4">추가된 항목이 없습니다.</p>}
+            {imageFields.length === 0 && <p className="text-sm text-slate-400 text-center py-4">추가된 사진 항목이 없습니다.</p>}
             {imageFields.map((field, i) => (
               <div 
                 key={i} 
-                draggable // 💡 드래그 활성화
+                draggable 
                 onDragStart={(e) => handleImageDragStart(e, i)}
                 onDragEnter={(e) => handleImageDragEnter(e, i)}
                 onDragEnd={handleImageDragEnd}
@@ -403,9 +455,14 @@ export default function ReportFormConfigPage() {
                 <div className="flex items-center gap-3">
                   <GripVertical className="text-slate-400 shrink-0 cursor-grab active:cursor-grabbing" size={18} />
                   <div>
-                    <span className="font-semibold text-slate-700">{field.name}</span>
-                    <span className="text-xs px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded-md font-normal ml-2">
-                      {field.layout === 'FULL' ? '크게 1장' : '작게 2장'}
+                    <span className="font-semibold text-slate-700">
+                      {field.layout === 'SPLIT' ? `${field.name} / ${field.name2}` : field.name}
+                    </span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ml-2 ${
+                      field.layout === 'SPLIT' ? 'bg-orange-100 text-orange-600' :
+                      field.layout === 'HALF' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'
+                    }`}>
+                      {field.layout === 'SPLIT' ? '2장 (각각명)' : field.layout === 'HALF' ? '2장 (동일명)' : '1장 (크게)'}
                     </span>
                   </div>
                 </div>
