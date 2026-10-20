@@ -143,7 +143,7 @@ export default function WorkItemDetailPage() {
                         setActiveCategory(validCategories[0]);
                     }
 
-                    // 💡 [핵심 구현] 엑셀 연동 및 고정값 자동입력 로직
+                    // 텍스트 데이터 엑셀 연동 및 자동입력
                     const updatedTextAnswers = { ...loadedTextAnswers };
                     const textFieldsConfig = formData.textFields || [];
 
@@ -151,16 +151,9 @@ export default function WorkItemDetailPage() {
                         if (updatedTextAnswers[field.name] === undefined) {
                             if (field.isAutoFill) {
                                 if (field.mappedExcelColumn) {
-
-                                    // 💡 1번 항목 텍스트
                                     const val1 = workItem.rowData?.[field.mappedExcelColumn] || "";
-
-                                    // 💡 2번 항목 텍스트 (있는 경우에만)
                                     const val2 = field.mappedExcelColumn2 ? (workItem.rowData?.[field.mappedExcelColumn2] || "") : "";
-
-                                    // 두 항목을 조합 (val2가 있으면 띄어쓰기 포함해서 붙임)
                                     updatedTextAnswers[field.name] = val2 ? `${val1} ${val2}`.trim() : val1.trim();
-
                                 } else if (field.defaultValue) {
                                     updatedTextAnswers[field.name] = field.defaultValue;
                                 } else {
@@ -172,7 +165,6 @@ export default function WorkItemDetailPage() {
                         }
                     });
 
-                    // 완성된 텍스트 데이터를 상태에 적용
                     setTextAnswers(updatedTextAnswers);
 
                 } else {
@@ -299,7 +291,6 @@ export default function WorkItemDetailPage() {
             }
 
             const blob = await response.blob();
-
             const reader = new FileReader();
 
             reader.onloadend = () => {
@@ -316,7 +307,6 @@ export default function WorkItemDetailPage() {
             reader.readAsDataURL(blob);
         } catch (error) {
             console.error("이미지 편집기 실행 실패:", error);
-
             alert(
                 "이미지를 편집기로 불러오지 못했습니다.\n" +
                 "브라우저 캐시를 삭제한 후 다시 시도해 주세요."
@@ -332,7 +322,7 @@ export default function WorkItemDetailPage() {
             const newSizeStr = formatBytes(getBase64Size(newBase64));
             setImageSizes(prev => ({ ...prev, [key]: newSizeStr }));
         }
-        setEditImageTarget(null); // 모달 닫기
+        setEditImageTarget(null);
     };
 
     const handleTextChange = (fieldName: string, value: string) => {
@@ -364,7 +354,6 @@ export default function WorkItemDetailPage() {
         }
     };
 
-    // 다운로드 시 인증 헤더 포함
     const handleDownloadPdf = async (url: string, fileName: string) => {
         try {
             const response = await fetch(url, {
@@ -511,25 +500,45 @@ export default function WorkItemDetailPage() {
                 </div>
             )}
 
-            {/* 현장 사진 첨부 및 에디터 적용 영역 */}
+            {/* 💡 현장 사진 첨부 (SPLIT, HALF, FULL 레이아웃 동적 렌더링) */}
             {imageFields.length > 0 && (
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                     <h3 className="text-lg font-bold text-slate-800 border-b pb-3">현장 사진 첨부 {activeCategory && `(${activeCategory})`}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {imageFields.map((field: any) => {
                             const isHalf = field.layout === 'HALF';
-                            const slots = isHalf ? [1, 2] : [1];
+                            const isSplit = field.layout === 'SPLIT';
 
-                            return slots.map(slotNum => {
-                                const subKeyName = isHalf ? `${field.name} ${slotNum}` : field.name;
+                            // 레이아웃에 맞춰 슬롯 구성
+                            let slots: { name: string, titleSuffix: string, colSpan: string }[] = [];
+
+                            if (isHalf) {
+                                slots = [
+                                    { name: `${field.name} 1`, titleSuffix: "(2장 중 1번째)", colSpan: "col-span-1" },
+                                    { name: `${field.name} 2`, titleSuffix: "(2장 중 2번째)", colSpan: "col-span-1" }
+                                ];
+                            } else if (isSplit) {
+                                slots = [
+                                    { name: field.name, titleSuffix: "", colSpan: "col-span-1" },
+                                    { name: field.name2, titleSuffix: "", colSpan: "col-span-1" }
+                                ];
+                            } else {
+                                // FULL
+                                slots = [
+                                    { name: field.name, titleSuffix: "", colSpan: "md:col-span-2" }
+                                ];
+                            }
+
+                            return slots.map(slot => {
+                                const subKeyName = slot.name;
                                 const fieldKey = activeCategory ? `${activeCategory}_${subKeyName}` : subKeyName;
                                 const currentImg = imageAnswers[fieldKey];
                                 const currentSize = imageSizes[fieldKey];
 
                                 return (
-                                    <div key={fieldKey} className={`p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 ${isHalf ? 'col-span-1' : 'md:col-span-2'}`}>
+                                    <div key={fieldKey} className={`p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 ${slot.colSpan}`}>
                                         <label className="block text-sm font-bold text-slate-700">
-                                            {subKeyName} {isHalf && <span className="text-xs text-indigo-600 font-normal ml-1">(2장 중 {slotNum}번째)</span>}
+                                            {subKeyName} {slot.titleSuffix && <span className="text-xs text-indigo-600 font-normal ml-1">{slot.titleSuffix}</span>}
                                         </label>
 
                                         <div className="border-2 border-dashed border-slate-300 rounded-xl p-2 bg-white hover:border-indigo-500 transition relative flex flex-col items-center justify-center overflow-hidden h-44 group">
@@ -893,7 +902,7 @@ export default function WorkItemDetailPage() {
                     />
                 </div>
             )}
-
+            
             {/* 서명 입력 모달 창 */}
             {isSignModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

@@ -3,756 +3,746 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
-  ArrowLeft, CheckCircle2,
-  Calendar, ClipboardCheck, Image as ImageIcon, Save, RotateCcw, PenTool, X, Pen,
-  Download, FileText, Camera, Loader2
+    ArrowLeft, FileText, CheckCircle2,
+    Save, RotateCcw, PenTool, Pen, X,
+    Download, Image as ImageIcon, Camera, Loader2
 } from "lucide-react";
 
 // SSR 환경에서 Canvas 관련 에러 방지를 위해 dynamic import 사용
 const FilerobotImageEditor = dynamic(() => import("react-filerobot-image-editor"), { ssr: false });
 
-// 공통 인증 헤더
-const getAuthHeaders = () => {
-  if (typeof window === "undefined") return {};
-  const rawToken = localStorage.getItem("token") || "";
-  const cleanToken = rawToken.replace(/^['"]|['"]$/g, '');
-  return {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${cleanToken}`
-  };
-};
-
 // 파일 용량 변환 포맷 함수 (Bytes -> KB, MB)
 const formatBytes = (bytes: number, decimals = 2) => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
 // Base64 문자열에서 대략적인 파일 용량(Byte) 계산
 const getBase64Size = (base64: string) => {
-  const base64str = base64.split('base64,')[1] || base64;
-  const decodedLen = Math.round((base64str.length * 3) / 4);
-  return decodedLen;
+    const base64str = base64.split('base64,')[1] || base64;
+    const decodedLen = Math.round((base64str.length * 3) / 4);
+    return decodedLen;
 };
 
 export default function MobileWorkItemDetailPage() {
-  const params = useParams();
-  const itemId = params.id as string;
-  const router = useRouter();
+    const params = useParams();
+    const itemId = params.id as string;
+    const router = useRouter();
 
-  const [item, setItem] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false); // 👈 PDF 다운로드 상태 추가
+    const [item, setItem] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
-  // 보고서 폼 및 카테고리 설정 상태
-  const [reportForm, setReportForm] = useState<any>({ categories: [], textFields: [], imageFields: [] });
-  const [activeCategory, setActiveCategory] = useState<string>("");
+    // 보고서 폼 및 카테고리 설정 상태
+    const [reportForm, setReportForm] = useState<any>({ categories: [], textFields: [], imageFields: [] });
+    const [activeCategory, setActiveCategory] = useState<string>("");
 
-  // 입력 데이터 상태
-  const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
-  const [imageAnswers, setImageAnswers] = useState<Record<string, string>>({});
+    // 입력 데이터 상태
+    const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
+    const [imageAnswers, setImageAnswers] = useState<Record<string, string>>({});
 
-  // 이미지 용량 및 에디터 관련 상태
-  const [imageSizes, setImageSizes] = useState<Record<string, string>>({});
-  const [editImageTarget, setEditImageTarget] = useState<{ key: string, url: string } | null>(null);
+    // 이미지 용량 및 에디터 관련 상태
+    const [imageSizes, setImageSizes] = useState<Record<string, string>>({});
+    const [editImageTarget, setEditImageTarget] = useState<{ key: string, url: string } | null>(null);
 
-  const [surveyAnswers, setSurveyAnswers] = useState<Record<string, any>>({});
-  const [surveyForm, setSurveyForm] = useState<any>(null);
+    const [surveyAnswers, setSurveyAnswers] = useState<Record<string, any>>({});
+    const [surveyForm, setSurveyForm] = useState<any>(null);
 
-  // 서명 관련 상태
-  const today = new Date();
-  const [signYear, setSignYear] = useState<string>(String(today.getFullYear()));
-  const [signMonth, setSignMonth] = useState<string>(String(today.getMonth() + 1));
-  const [signDay, setSignDay] = useState<string>(String(today.getDate()));
-  const [signName, setSignName] = useState<string>("");
+    // 서명 관련 상태
+    const today = new Date();
+    const [signYear, setSignYear] = useState<string>(String(today.getFullYear()));
+    const [signMonth, setSignMonth] = useState<string>(String(today.getMonth() + 1));
+    const [signDay, setSignDay] = useState<string>(String(today.getDate()));
+    const [signName, setSignName] = useState<string>("");
 
-  const [isSignModalOpen, setIsSignModalOpen] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [signatureUrl, setSignatureUrl] = useState<string>("");
+    const [isSignModalOpen, setIsSignModalOpen] = useState(false);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [signatureUrl, setSignatureUrl] = useState<string>("");
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(`${API_BASE_URL}/api/work-items/${itemId}`, {
-        headers: getAuthHeaders()
-      });
-
-      if (res.data.ok) {
-        const workItem = res.data.data;
-        setItem(workItem);
-
-        // 1. 기존 보고서 데이터 복원 (이후 폼 설정과 병합하기 위해 임시 저장)
-        const loadedTextAnswers = workItem.reportResult?.textAnswers || {};
-
-        const loadedImageAnswers = workItem.reportResult?.imageAnswers || {};
-        setImageAnswers(loadedImageAnswers);
-
-        // 불러온 이미지의 용량 계산
-        const initialSizes: Record<string, string> = {};
-        Object.keys(loadedImageAnswers).forEach(key => {
-          if (loadedImageAnswers[key]) {
-            initialSizes[key] = formatBytes(getBase64Size(loadedImageAnswers[key]));
-          }
-        });
-        setImageSizes(initialSizes);
-
-        // 2. 설문조사 데이터 복원
-        setSurveyAnswers(workItem.surveyResponse?.answers || {});
-
-        // 3. 서명 및 기본 정보 복원
-        if (workItem.customerSignature) {
-          setSignatureUrl(workItem.customerSignature);
-        } else {
-          setSignatureUrl("");
-        }
-
-        if (workItem.customerName) setSignName(workItem.customerName);
-
-        if (workItem.workDate) {
-          const parts = workItem.workDate.split("-");
-          if (parts.length === 3) {
-            setSignYear(parts[0]);
-            setSignMonth(String(Number(parts[1])));
-            setSignDay(String(Number(parts[2])));
-          }
-        }
-
-        // 4. 양식 불러오기
-        const siteId = workItem.workSiteId;
-        const [formRes, surveyRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/api/reports/work-sites/${siteId}/report-form`, { headers: getAuthHeaders() }).catch(() => null),
-          axios.get(`${API_BASE_URL}/api/site-surveys/work-sites/${siteId}/survey`, { headers: getAuthHeaders() }).catch(() => null)
-        ]);
-
-        if (formRes?.data?.ok && formRes.data.data) {
-          const formData = formRes.data.data;
-          let validCategories = formData.categories || [];
-          if (validCategories.length > 1 && validCategories.includes("기본")) {
-            validCategories = validCategories.filter((c: string) => c !== "기본");
-          }
-
-          setReportForm({ ...formData, categories: validCategories });
-          if (validCategories.length > 0) {
-            setActiveCategory(validCategories[0]);
-          }
-
-          // 💡 [핵심 구현] 엑셀 연동 및 고정값 자동입력 병합 로직
-          const updatedTextAnswers = { ...loadedTextAnswers };
-          const textFieldsConfig = formData.textFields || [];
-
-          textFieldsConfig.forEach((field: any) => {
-            if (updatedTextAnswers[field.name] === undefined) {
-              if (field.isAutoFill) {
-                if (field.mappedExcelColumn) {
-
-                  // 💡 1번 항목 텍스트
-                  const val1 = workItem.rowData?.[field.mappedExcelColumn] || "";
-
-                  // 💡 2번 항목 텍스트 (있는 경우에만)
-                  const val2 = field.mappedExcelColumn2 ? (workItem.rowData?.[field.mappedExcelColumn2] || "") : "";
-
-                  // 두 항목을 조합 (val2가 있으면 띄어쓰기 포함해서 붙임)
-                  updatedTextAnswers[field.name] = val2 ? `${val1} ${val2}`.trim() : val1.trim();
-
-                } else if (field.defaultValue) {
-                  updatedTextAnswers[field.name] = field.defaultValue;
-                } else {
-                  updatedTextAnswers[field.name] = "";
-                }
-              } else {
-                updatedTextAnswers[field.name] = "";
-              }
-            }
-          });
-
-          setTextAnswers(updatedTextAnswers);
-
-        } else {
-          setTextAnswers(loadedTextAnswers);
-        }
-
-        if (surveyRes?.data?.ok && surveyRes.data.data) {
-          setSurveyForm(surveyRes.data.data);
-        }
-      }
-    } catch (err) {
-      console.error("데이터 조회 실패:", err);
-      alert("정보를 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (itemId) fetchData();
-  }, [itemId]);
-
-  // --- 📝 서명 캔버스 핸들러 ---
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    setIsDrawing(true);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#000";
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  };
-
-  const stopDrawing = () => setIsDrawing(false);
-
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setSignatureUrl("");
-  };
-
-  const saveSignatureFromModal = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    setSignatureUrl(canvas.toDataURL("image/png"));
-    setIsSignModalOpen(false);
-  };
-
-  // --- 📷 이미지 및 텍스트 핸들러 ---
-  const handleImageChange = (fieldName: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // 이미지 용량 저장
-    setImageSizes(prev => ({ ...prev, [fieldName]: formatBytes(file.size) }));
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImageAnswers(prev => ({ ...prev, [fieldName]: reader.result as string }));
+    const getAuthHeaders = () => {
+        if (typeof window === "undefined") return {};
+        const rawToken = localStorage.getItem("token") || "";
+        const cleanToken = rawToken.replace(/^['"]|['"]$/g, '');
+        return {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cleanToken}`
+        };
     };
-    reader.readAsDataURL(file);
-  };
 
-  const removeImage = (fieldName: string) => {
-    setImageAnswers(prev => {
-      const updated = { ...prev };
-      delete updated[fieldName];
-      return updated;
-    });
-    setImageSizes(prev => {
-      const updated = { ...prev };
-      delete updated[fieldName];
-      return updated;
-    });
-  };
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const res = await axios.get(`${API_BASE_URL}/api/work-items/${itemId}`, {
+                headers: getAuthHeaders()
+            });
 
-  // S3 이미지를 Base64로 변환한 뒤 이미지 편집기 열기
-  const handleOpenImageEditor = async (key: string, imageUrl: string) => {
-    try {
-      if (imageUrl.startsWith("data:")) {
-        setEditImageTarget({ key, url: imageUrl });
-        return;
-      }
+            if (res.data.ok) {
+                const workItem = res.data.data;
+                setItem(workItem);
 
-      const separator = imageUrl.includes("?") ? "&" : "?";
-      const cacheBustingUrl = `${imageUrl}${separator}editor=${Date.now()}`;
-      const response = await fetch(cacheBustingUrl, {
-        method: "GET",
-        mode: "cors",
-        cache: "no-store",
-      });
+                const loadedTextAnswers = workItem.reportResult?.textAnswers || {};
+                const loadedImageAnswers = workItem.reportResult?.imageAnswers || {};
+                setImageAnswers(loadedImageAnswers);
 
-      if (!response.ok) {
-        throw new Error(`이미지 요청 실패: ${response.status} ${response.statusText}`);
-      }
+                const initialSizes: Record<string, string> = {};
+                Object.keys(loadedImageAnswers).forEach(key => {
+                    if (loadedImageAnswers[key]) {
+                        initialSizes[key] = formatBytes(getBase64Size(loadedImageAnswers[key]));
+                    }
+                });
+                setImageSizes(initialSizes);
 
-      const blob = await response.blob();
-      const reader = new FileReader();
+                setSurveyAnswers(workItem.surveyResponse?.answers || {});
 
-      reader.onloadend = () => {
-        setEditImageTarget({ key, url: reader.result as string });
-      };
+                if (workItem.customerSignature) {
+                    setSignatureUrl(workItem.customerSignature);
+                } else {
+                    setSignatureUrl("");
+                }
 
-      reader.onerror = () => {
-        console.error("S3 이미지 Base64 변환 실패");
-        alert("이미지를 편집용 데이터로 변환하지 못했습니다.");
-      };
+                if (workItem.customerName) setSignName(workItem.customerName);
 
-      reader.readAsDataURL(blob);
-    } catch (error) {
-      console.error("이미지 편집기 실행 실패:", error);
-      alert("이미지를 편집기로 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
-    }
-  };
+                if (workItem.workDate) {
+                    const parts = workItem.workDate.split("-");
+                    if (parts.length === 3) {
+                        setSignYear(parts[0]);
+                        setSignMonth(String(Number(parts[1])));
+                        setSignDay(String(Number(parts[2])));
+                    }
+                }
 
-  const handleSaveEditedImage = (editedImageObject: any) => {
-    const newBase64 = editedImageObject.imageBase64;
-    const key = editImageTarget?.key;
-    if (key) {
-      setImageAnswers(prev => ({ ...prev, [key]: newBase64 }));
-      const newSizeStr = formatBytes(getBase64Size(newBase64));
-      setImageSizes(prev => ({ ...prev, [key]: newSizeStr }));
-    }
-    setEditImageTarget(null);
-  };
+                const siteId = workItem.workSiteId;
+                const [formRes, surveyRes] = await Promise.all([
+                    axios.get(`${API_BASE_URL}/api/reports/work-sites/${siteId}/report-form`, { headers: getAuthHeaders() }).catch(() => null),
+                    axios.get(`${API_BASE_URL}/api/site-surveys/work-sites/${siteId}/survey`, { headers: getAuthHeaders() }).catch(() => null)
+                ]);
 
-  const handleTextChange = (fieldName: string, value: string) => {
-    setTextAnswers(prev => ({ ...prev, [fieldName]: value }));
-  };
+                if (formRes?.data?.ok && formRes.data.data) {
+                    const formData = formRes.data.data;
+                    let validCategories = formData.categories || [];
+                    if (validCategories.length > 1 && validCategories.includes("기본")) {
+                        validCategories = validCategories.filter((c: string) => c !== "기본");
+                    }
 
-  // --- 💾 한 번에 통합 저장 ---
-  const handleSaveAll = async () => {
-    try {
-      setSaving(true);
-      await axios.post(`${API_BASE_URL}/api/reports/work-items/${itemId}/report`, {
-        workerId: item.assignedMemberId || 1,
-        textAnswers,
-        imageAnswers,
-        surveyAnswers,
-        surveyId: surveyForm?.id,
-        customerSignature: signatureUrl,
-        signDate: `${signYear}-${String(signMonth).padStart(2, '0')}-${String(signDay).padStart(2, '0')}`,
-        signName
-      }, { headers: getAuthHeaders() });
+                    setReportForm({ ...formData, categories: validCategories });
+                    if (validCategories.length > 0) {
+                        setActiveCategory(validCategories[0]);
+                    }
 
-      alert("모든 정보가 성공적으로 저장되었습니다.");
-      fetchData();
+                    const updatedTextAnswers = { ...loadedTextAnswers };
+                    const textFieldsConfig = formData.textFields || [];
 
-    } catch (err) {
-      console.error("저장 실패:", err);
-      alert("저장 중 오류가 발생했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  };
+                    textFieldsConfig.forEach((field: any) => {
+                        if (updatedTextAnswers[field.name] === undefined) {
+                            if (field.isAutoFill) {
+                                if (field.mappedExcelColumn) {
+                                    const val1 = workItem.rowData?.[field.mappedExcelColumn] || "";
+                                    const val2 = field.mappedExcelColumn2 ? (workItem.rowData?.[field.mappedExcelColumn2] || "") : "";
+                                    updatedTextAnswers[field.name] = val2 ? `${val1} ${val2}`.trim() : val1.trim();
+                                } else if (field.defaultValue) {
+                                    updatedTextAnswers[field.name] = field.defaultValue;
+                                } else {
+                                    updatedTextAnswers[field.name] = "";
+                                }
+                            } else {
+                                updatedTextAnswers[field.name] = "";
+                            }
+                        }
+                    });
 
-  // --- 📄 PDF 다운로드 핸들러 (직접 URL 이동 방식) ---
-  const handleDownloadPdf = (url: string, fileName: string) => {
-    try {
-      const isAndroidApp = typeof window !== 'undefined' && (window as any).Android;
+                    setTextAnswers(updatedTextAnswers);
 
-      if (isAndroidApp && typeof (window as any).Android.downloadFromUrl === 'function') {
-        // 1. 안드로이드 앱 환경: 네이티브 다운로더 브릿지 호출
-        (window as any).Android.downloadFromUrl(url, fileName);
-      } else {
-        // 2. 일반 웹 브라우저 및 아이폰 환경: <a> 태그를 통해 직접 열기
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank'; // 새 탭에서 열기
-        link.download = fileName;
+                } else {
+                    setTextAnswers(loadedTextAnswers);
+                }
 
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-    } catch (err) {
-      console.error("다운로드 실패:", err);
-      alert("다운로드 중 오류가 발생했습니다.");
-    }
-  };
-
-  if (loading) return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={32} /></div>;
-  if (!item) return <div className="p-12 text-center text-slate-400">작업 정보를 찾을 수 없습니다.</div>;
-
-  const detailFields = item.site?.detailVisibleFields || [];
-  const categories = reportForm.categories || [];
-  const textFields = reportForm.textFields || [];
-  const imageFields = reportForm.imageFields || [];
-
-  return (
-    <div className="min-h-screen bg-slate-50 text-gray-900 pb-24">
-      {/* 📌 상단 고정 헤더 */}
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between px-4 bg-white border-b border-gray-200 shadow-sm">
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="text-gray-600 p-1">
-            <ArrowLeft size={22} />
-          </button>
-          <h1 className="text-base font-bold">대상자 상세</h1>
-        </div>
-        <button
-          onClick={handleSaveAll}
-          disabled={saving}
-          className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-md shadow-sm flex items-center gap-1 hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          저장
-        </button>
-      </header>
-
-      <main className="p-4 space-y-6 max-w-md mx-auto">
-
-        {/* 다운로드 버튼 */}
-        <section>
-          {item?.reportResult ? (
-            <button
-              onClick={() => {
-                const pdfDownloadUrl = item.reportResult.pdfPath
-                  ? item.reportResult.pdfPath
-                  : `${API_BASE_URL}/api/work-items/${itemId}/pdf`;
-                console.log(pdfDownloadUrl);
-
-                handleDownloadPdf(pdfDownloadUrl, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`);
-              }}
-              disabled={isDownloadingPdf}
-              className={`w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm transition ${isDownloadingPdf ? "opacity-70 cursor-not-allowed" : "hover:bg-red-100"
-                }`}
-            >
-              {isDownloadingPdf ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  PDF 파일 생성 및 다운로드 중...
-                </>
-              ) : (
-                <>
-                  <Download size={16} />
-                  작업 결과 보고서 PDF 다운로드
-                </>
-              )}
-            </button>
-          ) : (
-            <div className="bg-white px-4 py-3 text-center text-xs text-gray-400 rounded-xl border border-gray-100 shadow-sm">
-              보고서를 저장하면 PDF 다운로드 버튼이 활성화됩니다.
-            </div>
-          )}
-        </section>
-
-        {/* 2️⃣ 개인/연락처 정보 */}
-        <section>
-          <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">개인/연락처 정보</h2>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
-            {detailFields.length === 0 && <p className="text-xs text-gray-400">설정된 정보가 없습니다.</p>}
-            {detailFields.map((field: string) => (
-              <div key={field} className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-gray-400">{field}</span>
-                <span className="text-sm font-bold text-gray-800">{item.rowData?.[field] || "-"}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* 3️⃣ 현장 사진 및 텍스트 첨부 */}
-        <section>
-          <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1 flex items-center justify-between">
-            현장 보고서 입력
-            {categories.length >= 4 && (
-              <select
-                value={activeCategory}
-                onChange={(e) => setActiveCategory(e.target.value)}
-                className="text-xs font-bold text-gray-700 border border-gray-300 rounded-md px-2 py-1 bg-white outline-none"
-              >
-                {categories.map((cat: string) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            )}
-          </h2>
-
-          {categories.length > 0 && categories.length < 4 && (
-            <div className="flex bg-slate-200 p-1 rounded-xl mb-3">
-              {categories.map((cat: string) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`flex-1 py-2.5 text-[13px] font-bold rounded-lg transition-all ${activeCategory === cat
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                    }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-5">
-            {textFields.length > 0 && (
-              <div className="space-y-4 border-b border-gray-100 pb-5 mb-5">
-                {textFields.map((field: any, idx: number) => (
-                  <div key={idx} className="space-y-1">
-                    <label className="block text-xs font-bold text-gray-700">
-                      {field.name}
-                      {field.isAutoFill && (
-                        <span className="ml-1 text-[10px] font-medium text-blue-500">
-                          (자동입력)
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="text"
-                      value={textAnswers[field.name] || ""}
-                      onChange={(e) => handleTextChange(field.name, e.target.value)}
-                      placeholder={`${field.name} 입력`}
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 outline-none"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {imageFields.length > 0 && (
-              <div className="space-y-5">
-                {imageFields.map((field: any) => {
-                  const isHalf = field.layout === 'HALF';
-                  const slots = isHalf ? [1, 2] : [1];
-
-                  return slots.map(slotNum => {
-                    const subKeyName = isHalf ? `${field.name} ${slotNum}` : field.name;
-                    const fieldKey = activeCategory ? `${activeCategory}_${subKeyName}` : subKeyName;
-                    const currentImg = imageAnswers[fieldKey];
-                    const currentSize = imageSizes[fieldKey];
-
-                    return (
-                      <div key={fieldKey}>
-                        <span className="block text-sm font-bold text-gray-800 mb-2">
-                          {subKeyName} {isHalf && <span className="text-[10px] text-blue-500 ml-1">(2장 중 {slotNum})</span>}
-                        </span>
-
-                        <div className="relative w-full h-40 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden group">
-                          {currentImg ? (
-                            <>
-                              <img src={currentImg} alt={subKeyName} className="w-full h-full object-contain bg-black/5" />
-
-                              <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-1 rounded-md z-10">
-                                {currentSize || "용량 계산 중..."}
-                              </div>
-
-                              <div className="absolute top-2 right-2 flex gap-2 z-10">
-                                <button
-                                  type="button"
-                                  onClick={async (e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    await handleOpenImageEditor(fieldKey, currentImg);
-                                  }}
-                                  className="p-2 bg-blue-600 text-white rounded-full shadow-md hover:bg-blue-700 transition"
-                                >
-                                  <PenTool size={14} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.preventDefault(); removeImage(fieldKey); }}
-                                  className="p-2 bg-red-500 text-white rounded-full shadow-md hover:bg-red-600 transition"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer hover:bg-gray-100">
-                              <div className="flex flex-col items-center gap-2 text-gray-400">
-                                <Camera size={24} />
-                                <span className="text-xs font-semibold">터치하여 사진 등록</span>
-                              </div>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => handleImageChange(fieldKey, e)}
-                              />
-                            </label>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  });
-                })}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* 4️⃣ 설문조사 */}
-        {surveyForm && surveyForm.questions && surveyForm.questions.length > 0 && (
-          <section>
-            <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">설문조사</h2>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="bg-[#fefce8] p-4 border-b border-[#fef08a]">
-                <h3 className="font-bold text-sm text-gray-800">{surveyForm.title}</h3>
-                <p className="text-xs text-gray-600 mt-1 leading-relaxed">설문에 응답해주시면 감사하겠습니다.</p>
-              </div>
-
-              <div className="p-5 space-y-6">
-                {surveyForm.questions.map((q: any, qIdx: number) => (
-                  <div key={qIdx}>
-                    <p className="text-sm font-bold text-gray-800 mb-3">{qIdx + 1}. {q.question}</p>
-
-                    {q.type === 'MULTIPLE_CHOICE' ? (
-                      <div className="flex flex-col gap-2">
-                        {q.options.map((opt: string, oIdx: number) => (
-                          <label key={oIdx} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`question_${qIdx}`}
-                              value={opt}
-                              className="w-4 h-4 text-blue-600"
-                              checked={surveyAnswers[qIdx] === opt}
-                              onChange={() => setSurveyAnswers({ ...surveyAnswers, [qIdx]: opt })}
-                            />
-                            {opt}
-                          </label>
-                        ))}
-                      </div>
-                    ) : (
-                      <textarea
-                        className="w-full border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-blue-500 bg-gray-50"
-                        rows={3}
-                        placeholder="자유롭게 입력해주세요..."
-                        value={surveyAnswers[qIdx] || ""}
-                        onChange={(e) => setSurveyAnswers({ ...surveyAnswers, [qIdx]: e.target.value })}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* 5️⃣ 고객 서명 */}
-        <section>
-          <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">고객 확인 및 서명</h2>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
-
-            <div className="flex flex-wrap items-center gap-2">
-              <input type="text" value={signYear} onChange={(e) => setSignYear(e.target.value)} className="w-16 p-1.5 text-center text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" /> 년
-              <input type="text" value={signMonth} onChange={(e) => setSignMonth(e.target.value)} className="w-12 p-1.5 text-center text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" /> 월
-              <input type="text" value={signDay} onChange={(e) => setSignDay(e.target.value)} className="w-12 p-1.5 text-center text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" /> 일
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold">성명:</span>
-              <input type="text" value={signName} onChange={(e) => setSignName(e.target.value)} className="flex-1 p-2 text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" placeholder="이름 입력" />
-            </div>
-
-            {/* 서명 확인/수정 */}
-            {signatureUrl ? (
-              <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-200">
-                <img src={signatureUrl} alt="서명" className="h-10 object-contain" />
-                <div className="flex gap-2">
-                  <button onClick={() => setIsSignModalOpen(true)} className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">재서명</button>
-                  <button onClick={() => setSignatureUrl("")} className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">삭제</button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsSignModalOpen(true)}
-                className="w-full py-3 bg-gray-800 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-sm"
-              >
-                <PenTool size={16} /> 서명 패드 열기
-              </button>
-            )}
-          </div>
-        </section>
-
-        {/* 하단 통합 저장 버튼 */}
-        <div className="pt-2">
-          <button
-            onClick={handleSaveAll}
-            disabled={saving}
-            className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-70"
-          >
-            {saving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
-            모든 내용 한 번에 저장하기
-          </button>
-        </div>
-
-      </main>
-
-      {/* 이미지 고급 편집 모달창 */}
-      {editImageTarget && (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col">
-          <FilerobotImageEditor
-            source={editImageTarget.url}
-            onSave={(editedImageObject, designState) =>
-              handleSaveEditedImage(editedImageObject)
+                if (surveyRes?.data?.ok && surveyRes.data.data) {
+                    setSurveyForm(surveyRes.data.data);
+                }
             }
-            onClose={() => setEditImageTarget(null)}
-            annotationsCommon={{ fill: "#ff0000" }}
-            Text={{ text: "이곳에 텍스트를 입력하세요" }}
-            tabsIds={["Adjust", "Annotate", "Watermark", "Filters", "Finetune"]}
-            defaultTabId="Annotate"
-            defaultToolId="Text"
-            savingPixelRatio={1}
-            previewPixelRatio={1}
-            useBackendTranslations={false}
-            language="ko"
-            theme={{ typography: { fontFamily: '"Noto Sans KR", sans-serif' } }}
-            translations={{
-              name: "파일 이름", save: "저장", saveAs: "다른 이름으로 저장", back: "뒤로",
-              loading: "불러오는 중...", cancel: "취소", apply: "적용", confirm: "확인",
-              discardChanges: "변경사항 삭제", resetOperations: "모든 편집 초기화",
-            }}
-          />
+        } catch (err) {
+            console.error("데이터 조회 실패:", err);
+            alert("정보를 불러오지 못했습니다.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (itemId) fetchData();
+    }, [itemId]);
+
+    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        setIsDrawing(true);
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+        const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#000";
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+    };
+
+    const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        if (!isDrawing) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+        const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    };
+
+    const stopDrawing = () => setIsDrawing(false);
+
+    const clearSignature = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setSignatureUrl("");
+    };
+
+    const saveSignatureFromModal = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        setSignatureUrl(canvas.toDataURL("image/png"));
+        setIsSignModalOpen(false);
+    };
+
+    const handleImageChange = (fieldName: string, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImageSizes(prev => ({ ...prev, [fieldName]: formatBytes(file.size) }));
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setImageAnswers(prev => ({ ...prev, [fieldName]: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const removeImage = (fieldName: string) => {
+        setImageAnswers(prev => {
+            const updated = { ...prev };
+            delete updated[fieldName];
+            return updated;
+        });
+        setImageSizes(prev => {
+            const updated = { ...prev };
+            delete updated[fieldName];
+            return updated;
+        });
+    };
+
+    const handleOpenImageEditor = async (key: string, imageUrl: string) => {
+        try {
+            if (imageUrl.startsWith("data:")) {
+                setEditImageTarget({ key, url: imageUrl });
+                return;
+            }
+
+            const separator = imageUrl.includes("?") ? "&" : "?";
+            const cacheBustingUrl = `${imageUrl}${separator}editor=${Date.now()}`;
+            const response = await fetch(cacheBustingUrl, {
+                method: "GET",
+                mode: "cors",
+                cache: "no-store",
+            });
+
+            if (!response.ok) {
+                throw new Error(`이미지 요청 실패: ${response.status} ${response.statusText}`);
+            }
+
+            const blob = await response.blob();
+            const reader = new FileReader();
+
+            reader.onloadend = () => {
+                setEditImageTarget({ key, url: reader.result as string });
+            };
+
+            reader.onerror = () => {
+                console.error("S3 이미지 Base64 변환 실패");
+                alert("이미지를 편집용 데이터로 변환하지 못했습니다.");
+            };
+
+            reader.readAsDataURL(blob);
+        } catch (error) {
+            console.error("이미지 편집기 실행 실패:", error);
+            alert("이미지를 편집기로 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+    };
+
+    const handleSaveEditedImage = (editedImageObject: any) => {
+        const newBase64 = editedImageObject.imageBase64;
+        const key = editImageTarget?.key;
+        if (key) {
+            setImageAnswers(prev => ({ ...prev, [key]: newBase64 }));
+            const newSizeStr = formatBytes(getBase64Size(newBase64));
+            setImageSizes(prev => ({ ...prev, [key]: newSizeStr }));
+        }
+        setEditImageTarget(null);
+    };
+
+    const handleTextChange = (fieldName: string, value: string) => {
+        setTextAnswers(prev => ({ ...prev, [fieldName]: value }));
+    };
+
+    const handleSaveAll = async () => {
+        try {
+            setSaving(true);
+            await axios.post(`${API_BASE_URL}/api/reports/work-items/${itemId}/report`, {
+                workerId: item.assignedMemberId || 1,
+                textAnswers,
+                imageAnswers,
+                surveyAnswers,
+                surveyId: surveyForm?.id,
+                customerSignature: signatureUrl,
+                signDate: `${signYear}-${String(signMonth).padStart(2, '0')}-${String(signDay).padStart(2, '0')}`,
+                signName
+            }, { headers: getAuthHeaders() });
+
+            alert("모든 정보가 성공적으로 저장되었습니다.");
+            fetchData();
+
+        } catch (err) {
+            console.error("저장 실패:", err);
+            alert("저장 중 오류가 발생했습니다.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDownloadPdf = (url: string, fileName: string) => {
+        try {
+            const isAndroidApp = typeof window !== 'undefined' && (window as any).Android;
+
+            if (isAndroidApp && typeof (window as any).Android.downloadFromUrl === 'function') {
+                (window as any).Android.downloadFromUrl(url, fileName);
+            } else {
+                const link = document.createElement('a');
+                link.href = url;
+                link.target = '_blank';
+                link.download = fileName;
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        } catch (err) {
+            console.error("다운로드 실패:", err);
+            alert("다운로드 중 오류가 발생했습니다.");
+        }
+    };
+
+    if (loading) return <div className="flex h-screen items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={32} /></div>;
+    if (!item) return <div className="p-12 text-center text-slate-400">작업 정보를 찾을 수 없습니다.</div>;
+
+    const detailFields = item.site?.detailVisibleFields || [];
+    const categories = reportForm.categories || [];
+    const textFields = reportForm.textFields || [];
+    const imageFields = reportForm.imageFields || [];
+
+    return (
+        <div className="min-h-screen bg-slate-50 text-gray-900 pb-24">
+            <header className="sticky top-0 z-40 flex h-14 items-center justify-between px-4 bg-white border-b border-gray-200 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <button onClick={() => router.back()} className="text-gray-600 p-1">
+                        <ArrowLeft size={22} />
+                    </button>
+                    <h1 className="text-base font-bold">대상자 상세</h1>
+                </div>
+                <button
+                    onClick={handleSaveAll}
+                    disabled={saving}
+                    className="px-3 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-md shadow-sm flex items-center gap-1 hover:bg-blue-700 disabled:opacity-50"
+                >
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    저장
+                </button>
+            </header>
+
+            <main className="p-4 space-y-6 max-w-md mx-auto">
+                <section>
+                    {item?.reportResult ? (
+                        <button
+                            onClick={() => {
+                                const pdfDownloadUrl = item.reportResult.pdfPath
+                                    ? item.reportResult.pdfPath
+                                    : `${API_BASE_URL}/api/work-items/${itemId}/pdf`;
+                                handleDownloadPdf(pdfDownloadUrl, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`);
+                            }}
+                            disabled={isDownloadingPdf}
+                            className={`w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm transition ${isDownloadingPdf ? "opacity-70 cursor-not-allowed" : "hover:bg-red-100"
+                                }`}
+                        >
+                            {isDownloadingPdf ? (
+                                <>
+                                    <Loader2 size={16} className="animate-spin" />
+                                    PDF 파일 생성 및 다운로드 중...
+                                </>
+                            ) : (
+                                <>
+                                    <Download size={16} />
+                                    작업 결과 보고서 PDF 다운로드
+                                </>
+                            )}
+                        </button>
+                    ) : (
+                        <div className="bg-white px-4 py-3 text-center text-xs text-gray-400 rounded-xl border border-gray-100 shadow-sm">
+                            보고서를 저장하면 PDF 다운로드 버튼이 활성화됩니다.
+                        </div>
+                    )}
+                </section>
+
+                <section>
+                    <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">개인/연락처 정보</h2>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+                        {detailFields.length === 0 && <p className="text-xs text-gray-400">설정된 정보가 없습니다.</p>}
+                        {detailFields.map((field: string) => (
+                            <div key={field} className="flex flex-col gap-1">
+                                <span className="text-[11px] font-bold text-gray-400">{field}</span>
+                                <span className="text-sm font-bold text-gray-800">{item.rowData?.[field] || "-"}</span>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                <section>
+                    <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1 flex items-center justify-between">
+                        현장 보고서 입력
+                        {categories.length >= 4 && (
+                            <select
+                                value={activeCategory}
+                                onChange={(e) => setActiveCategory(e.target.value)}
+                                className="text-xs font-bold text-gray-700 border border-gray-300 rounded-md px-2 py-1 bg-white outline-none"
+                            >
+                                {categories.map((cat: string) => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        )}
+                    </h2>
+
+                    {categories.length > 0 && categories.length < 4 && (
+                        <div className="flex bg-slate-200 p-1 rounded-xl mb-3">
+                            {categories.map((cat: string) => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setActiveCategory(cat)}
+                                    className={`flex-1 py-2.5 text-[13px] font-bold rounded-lg transition-all ${activeCategory === cat
+                                        ? "bg-white text-gray-900 shadow-sm"
+                                        : "text-gray-500 hover:text-gray-700"
+                                        }`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-5">
+                        {textFields.length > 0 && (
+                            <div className="space-y-4 border-b border-gray-100 pb-5 mb-5">
+                                {textFields.map((field: any, idx: number) => (
+                                    <div key={idx} className="space-y-1">
+                                        <label className="block text-xs font-bold text-gray-700">
+                                            {field.name}
+                                            {field.isAutoFill && (
+                                                <span className="ml-1 text-[10px] font-medium text-blue-500">
+                                                    (자동입력)
+                                                </span>
+                                            )}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={textAnswers[field.name] || ""}
+                                            onChange={(e) => handleTextChange(field.name, e.target.value)}
+                                            placeholder={`${field.name} 입력`}
+                                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 outline-none"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* 💡 3가지 이미지 레이아웃 렌더링 영역 */}
+                        {imageFields.length > 0 && (
+                            <div className="grid grid-cols-2 gap-4">
+                                {imageFields.map((field: any) => {
+                                    const isHalf = field.layout === 'HALF';
+                                    const isSplit = field.layout === 'SPLIT';
+
+                                    let slots: { name: string, titleSuffix: string, colSpan: string }[] = [];
+
+                                    if (isHalf) {
+                                        slots = [
+                                            { name: `${field.name} 1`, titleSuffix: "(1/2)", colSpan: "col-span-1" },
+                                            { name: `${field.name} 2`, titleSuffix: "(2/2)", colSpan: "col-span-1" }
+                                        ];
+                                    } else if (isSplit) {
+                                        slots = [
+                                            { name: field.name, titleSuffix: "", colSpan: "col-span-1" },
+                                            { name: field.name2, titleSuffix: "", colSpan: "col-span-1" }
+                                        ];
+                                    } else {
+                                        slots = [
+                                            { name: field.name, titleSuffix: "", colSpan: "col-span-2" }
+                                        ];
+                                    }
+
+                                    return slots.map(slot => {
+                                        const subKeyName = slot.name;
+                                        const fieldKey = activeCategory ? `${activeCategory}_${subKeyName}` : subKeyName;
+                                        const currentImg = imageAnswers[fieldKey];
+                                        const currentSize = imageSizes[fieldKey];
+
+                                        return (
+                                            <div key={fieldKey} className={`flex flex-col ${slot.colSpan}`}>
+                                                <span className="block text-[13px] font-bold text-gray-800 mb-1.5 truncate">
+                                                    {subKeyName} {slot.titleSuffix && <span className="text-[10px] text-blue-500 font-normal ml-0.5">{slot.titleSuffix}</span>}
+                                                </span>
+
+                                                <div className="relative w-full h-36 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden group">
+                                                    {currentImg ? (
+                                                        <>
+                                                            <img src={currentImg} alt={subKeyName} className="w-full h-full object-contain bg-black/5" />
+
+                                                            <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-1 rounded-md z-10">
+                                                                {currentSize || "용량 확인 중..."}
+                                                            </div>
+
+                                                            <div className="absolute top-2 right-2 flex gap-1 z-10">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={async (e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        await handleOpenImageEditor(fieldKey, currentImg);
+                                                                    }}
+                                                                    className="p-2 bg-blue-600/90 text-white rounded-full shadow-md hover:bg-blue-700 transition"
+                                                                >
+                                                                    <PenTool size={14} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => { e.preventDefault(); removeImage(fieldKey); }}
+                                                                    className="p-2 bg-red-500/90 text-white rounded-full shadow-md hover:bg-red-600 transition"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer hover:bg-gray-100">
+                                                            <div className="flex flex-col items-center gap-1.5 text-gray-400">
+                                                                <Camera size={24} />
+                                                                <span className="text-[11px] font-semibold">사진 첨부</span>
+                                                            </div>
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="hidden"
+                                                                onChange={(e) => handleImageChange(fieldKey, e)}
+                                                            />
+                                                        </label>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </section>
+
+                {/* 4️⃣ 설문조사 */}
+                {surveyForm && surveyForm.questions && surveyForm.questions.length > 0 && (
+                    <section>
+                        <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">설문조사</h2>
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="bg-[#fefce8] p-4 border-b border-[#fef08a]">
+                                <h3 className="font-bold text-sm text-gray-800">{surveyForm.title}</h3>
+                                <p className="text-xs text-gray-600 mt-1 leading-relaxed">설문에 응답해주시면 감사하겠습니다.</p>
+                            </div>
+
+                            <div className="p-5 space-y-6">
+                                {surveyForm.questions.map((q: any, qIdx: number) => (
+                                    <div key={qIdx}>
+                                        <p className="text-sm font-bold text-gray-800 mb-3">{qIdx + 1}. {q.question}</p>
+
+                                        {q.type === 'MULTIPLE_CHOICE' ? (
+                                            <div className="flex flex-col gap-2">
+                                                {q.options.map((opt: string, oIdx: number) => (
+                                                    <label key={oIdx} className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer">
+                                                        <input
+                                                            type="radio"
+                                                            name={`question_${qIdx}`}
+                                                            value={opt}
+                                                            className="w-4 h-4 text-blue-600"
+                                                            checked={surveyAnswers[qIdx] === opt}
+                                                            onChange={() => setSurveyAnswers({ ...surveyAnswers, [qIdx]: opt })}
+                                                        />
+                                                        {opt}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <textarea
+                                                className="w-full border border-gray-200 rounded-xl p-3 text-sm outline-none focus:border-blue-500 bg-gray-50"
+                                                rows={3}
+                                                placeholder="자유롭게 입력해주세요..."
+                                                value={surveyAnswers[qIdx] || ""}
+                                                onChange={(e) => setSurveyAnswers({ ...surveyAnswers, [qIdx]: e.target.value })}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* 5️⃣ 고객 서명 */}
+                <section>
+                    <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">고객 확인 및 서명</h2>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <input type="text" value={signYear} onChange={(e) => setSignYear(e.target.value)} className="w-16 p-1.5 text-center text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" /> 년
+                            <input type="text" value={signMonth} onChange={(e) => setSignMonth(e.target.value)} className="w-12 p-1.5 text-center text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" /> 월
+                            <input type="text" value={signDay} onChange={(e) => setSignDay(e.target.value)} className="w-12 p-1.5 text-center text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" /> 일
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold">성명:</span>
+                            <input type="text" value={signName} onChange={(e) => setSignName(e.target.value)} className="flex-1 p-2 text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" placeholder="이름 입력" />
+                        </div>
+
+                        {/* 서명 확인/수정 */}
+                        {signatureUrl ? (
+                            <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                <img src={signatureUrl} alt="서명" className="h-10 object-contain" />
+                                <div className="flex gap-2">
+                                    <button onClick={() => setIsSignModalOpen(true)} className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">재서명</button>
+                                    <button onClick={() => setSignatureUrl("")} className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">삭제</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setIsSignModalOpen(true)}
+                                className="w-full py-3 bg-gray-800 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-sm"
+                            >
+                                <PenTool size={16} /> 서명 패드 열기
+                            </button>
+                        )}
+                    </div>
+                </section>
+
+                {/* 하단 통합 저장 버튼 */}
+                <div className="pt-2">
+                    <button
+                        onClick={handleSaveAll}
+                        disabled={saving}
+                        className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-70"
+                    >
+                        {saving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
+                        모든 내용 한 번에 저장하기
+                    </button>
+                </div>
+
+            </main>
+
+            {/* 이미지 고급 편집 모달창 */}
+            {editImageTarget && (
+                <div className="fixed inset-0 z-50 bg-black flex flex-col">
+                    <FilerobotImageEditor
+                        source={editImageTarget.url}
+                        onSave={(editedImageObject, designState) =>
+                            handleSaveEditedImage(editedImageObject)
+                        }
+                        onClose={() => setEditImageTarget(null)}
+                        annotationsCommon={{ fill: "#ff0000" }}
+                        Text={{ text: "이곳에 텍스트를 입력하세요" }}
+                        tabsIds={["Adjust", "Annotate", "Watermark", "Filters", "Finetune"]}
+                        defaultTabId="Annotate"
+                        defaultToolId="Text"
+                        savingPixelRatio={1}
+                        previewPixelRatio={1}
+                        useBackendTranslations={false}
+                        language="ko"
+                        theme={{ typography: { fontFamily: '"Noto Sans KR", sans-serif' } }}
+                        translations={{
+                            name: "파일 이름", save: "저장", saveAs: "다른 이름으로 저장", back: "뒤로",
+                            loading: "불러오는 중...", cancel: "취소", apply: "적용", confirm: "확인",
+                            discardChanges: "변경사항 삭제", resetOperations: "모든 편집 초기화",
+                        }}
+                    />
+                </div>
+            )}
+
+            {/* 서명 입력 모달 창 */}
+            {isSignModalOpen && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
+                        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                            <h3 className="text-base font-bold flex items-center gap-2">
+                                <PenTool className="text-blue-600" size={18} /> 서명 패드
+                            </h3>
+                            <button onClick={() => setIsSignModalOpen(false)} className="text-gray-400 p-1"><X size={20} /></button>
+                        </div>
+                        <p className="text-xs text-gray-500 text-center">아래 영역에 손가락으로 서명해 주세요.</p>
+
+                        <div className="border border-gray-300 rounded-xl overflow-hidden bg-gray-50">
+                            <canvas
+                                ref={canvasRef}
+                                width={320}
+                                height={160}
+                                onMouseDown={startDrawing}
+                                onMouseMove={draw}
+                                onMouseUp={stopDrawing}
+                                onTouchStart={startDrawing}
+                                onTouchMove={draw}
+                                onTouchEnd={stopDrawing}
+                                className="touch-none w-full bg-white"
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2">
+                            <button onClick={clearSignature} className="text-xs font-bold text-gray-500 flex items-center gap-1 bg-gray-100 px-3 py-2 rounded-lg">
+                                <RotateCcw size={14} /> 지우기
+                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setIsSignModalOpen(false)} className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg">취소</button>
+                                <button onClick={saveSignatureFromModal} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm">입력 완료</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-      )}
-
-      {/* 서명 입력 모달 창 */}
-      {isSignModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="text-base font-bold flex items-center gap-2">
-                <PenTool className="text-blue-600" size={18} /> 서명 패드
-              </h3>
-              <button onClick={() => setIsSignModalOpen(false)} className="text-gray-400 p-1"><X size={20} /></button>
-            </div>
-            <p className="text-xs text-gray-500 text-center">아래 영역에 손가락으로 서명해 주세요.</p>
-
-            <div className="border border-gray-300 rounded-xl overflow-hidden bg-gray-50">
-              <canvas
-                ref={canvasRef}
-                width={320}
-                height={160}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-                className="touch-none w-full bg-white"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2">
-              <button onClick={clearSignature} className="text-xs font-bold text-gray-500 flex items-center gap-1 bg-gray-100 px-3 py-2 rounded-lg">
-                <RotateCcw size={14} /> 지우기
-              </button>
-              <div className="flex gap-2">
-                <button onClick={() => setIsSignModalOpen(false)} className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg">취소</button>
-                <button onClick={saveSignatureFromModal} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm">입력 완료</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    );
 }
