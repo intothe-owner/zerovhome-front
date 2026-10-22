@@ -627,7 +627,7 @@ export default function MobileWorkItemDetailPage() {
                 )}
 
                 {/* 5️⃣ 고객 서명 */}
-                <section>
+                {/* <section>
                     <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">고객 확인 및 서명</h2>
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
 
@@ -642,7 +642,7 @@ export default function MobileWorkItemDetailPage() {
                             <input type="text" value={signName} onChange={(e) => setSignName(e.target.value)} className="flex-1 p-2 text-sm border border-slate-300 rounded-lg bg-gray-50 outline-none" placeholder="이름 입력" />
                         </div>
 
-                        {/* 서명 확인/수정 */}
+     
                         {signatureUrl ? (
                             <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-200">
                                 <img src={signatureUrl} alt="서명" className="h-10 object-contain" />
@@ -660,7 +660,7 @@ export default function MobileWorkItemDetailPage() {
                             </button>
                         )}
                     </div>
-                </section>
+                </section> */}
 
                 {/* 하단 통합 저장 버튼 */}
                 <div className="pt-2">

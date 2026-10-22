@@ -649,7 +649,7 @@ export default function WorkItemDetailPage() {
             )}
 
             {/* 서명 영역 */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            {/* <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 <h3 className="text-lg font-bold text-slate-800 border-b pb-3">고객 확인 서명</h3>
 
                 <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-slate-50 border border-slate-200 rounded-xl">
@@ -715,7 +715,7 @@ export default function WorkItemDetailPage() {
                         )}
                     </div>
                 </div>
-            </div>
+            </div> */}
 
             {/* 이미지 편집기 모달 */}
             {editImageTarget && (
