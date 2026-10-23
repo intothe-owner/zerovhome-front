@@ -364,7 +364,8 @@ export default function MobileWorkItemDetailPage() {
     const categories = reportForm.categories || [];
     const textFields = reportForm.textFields || [];
     const imageFields = reportForm.imageFields || [];
-   let downloadFileName = `[${item.site?.title || '현장'}]_${item.customerName || '고객'}_보고서.pdf`;
+    // 💡 [추가] PDF 다운로드 파일명 동적 생성 로직 (경로당명 확인)
+    let downloadFileName = `[${item.site?.title || '현장'}]_${item.customerName || '고객'}_보고서.pdf`;
     
     if (item?.rowData) {
         // rowData 항목 중 "경로당"이라는 단어가 포함된 항목 찾기
