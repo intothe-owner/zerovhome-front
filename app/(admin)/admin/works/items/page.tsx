@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { ListChecks, Search, Filter, MapPin, CheckCircle2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, UserCheck } from "lucide-react";
+import { ListChecks, Search, Filter, MapPin, CheckCircle2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X, UserCheck, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function WorkItemMonitorPage() {
@@ -64,10 +64,13 @@ export default function WorkItemMonitorPage() {
     const [assignKeyword, setAssignKeyword] = useState<string>("");
     const [assignLoading, setAssignLoading] = useState<boolean>(false);
 
-    // 상태 변경 모달 관련 상태
+    // 상태 일괄 변경 모달 관련 상태
     const [isStatusModalOpen, setIsStatusModalOpen] = useState<boolean>(false);
     const [targetBulkStatus, setTargetBulkStatus] = useState<string>("COMPLETED");
     const [statusLoading, setStatusLoading] = useState<boolean>(false);
+
+    // 개별 상태 변경을 위한 로딩 상태
+    const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
@@ -260,6 +263,30 @@ export default function WorkItemMonitorPage() {
         }
     };
 
+    // 개별 상태 변경 실행
+    const handleSingleStatusChange = async (itemId: number, newStatus: string) => {
+        try {
+            setUpdatingItemId(itemId);
+            const response = await axios.patch(`${API_BASE_URL}/api/work-items/${itemId}/status`, {
+                status: newStatus
+            }, {
+                headers: getAuthHeaders()
+            });
+
+            if (response.data.ok) {
+                // 변경 성공 시 목록 새로고침
+                fetchItems();
+            } else {
+                alert("상태 변경에 실패했습니다.");
+            }
+        } catch (err) {
+            console.error("개별 상태 변경 에러:", err);
+            alert("상태 변경 중 오류가 발생했습니다.");
+        } finally {
+            setUpdatingItemId(null);
+        }
+    };
+
     const handleSiteChange = (val: string) => {
         setSelectedSite(val);
         setSelectedMember(""); 
@@ -300,15 +327,6 @@ export default function WorkItemMonitorPage() {
     const startPage = (currentGroup - 1) * pageSizeGroup + 1;
     const endPage = Math.min(startPage + pageSizeGroup - 1, totalPages);
     const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'COMPLETED': return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200">작업완료</span>;
-            case 'IN_PROGRESS': return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-50 text-blue-600 border border-blue-200">진행중</span>;
-            case 'CANCELED': return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-50 text-red-600 border border-red-200">취소됨</span>;
-            default: return <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 border border-slate-200">대기중</span>;
-        }
-    };
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -452,7 +470,7 @@ export default function WorkItemMonitorPage() {
                                 ))}
                                 <th className="p-4 w-32">담당자</th>
                                 <th className="p-4 text-center w-28">위치 확인</th>
-                                <th className="p-4 text-center w-28">상태</th>
+                                <th className="p-4 text-center w-36">상태 관리</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -508,7 +526,27 @@ export default function WorkItemMonitorPage() {
                                                 )}
                                             </td>
                                             <td className="p-4 text-center">
-                                                {getStatusBadge(item.status)}
+                                                {updatingItemId === item.id ? (
+                                                    <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
+                                                        <Loader2 size={14} className="animate-spin" /> 변경중...
+                                                    </span>
+                                                ) : (
+                                                    <select
+                                                        value={item.status}
+                                                        onChange={(e) => handleSingleStatusChange(item.id, e.target.value)}
+                                                        className={`text-xs font-bold rounded-lg px-2.5 py-1 border focus:outline-none cursor-pointer appearance-none text-center
+                                                            ${item.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                                                              item.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                                              item.status === 'CANCELED' ? 'bg-red-50 text-red-600 border-red-200' :
+                                                              'bg-slate-100 text-slate-600 border-slate-200'
+                                                            }`}
+                                                    >
+                                                        <option value="PENDING">대기중</option>
+                                                        <option value="IN_PROGRESS">진행중</option>
+                                                        <option value="COMPLETED">작업완료</option>
+                                                        <option value="CANCELED">취소됨</option>
+                                                    </select>
+                                                )}
                                             </td>
                                         </tr>
                                     );
