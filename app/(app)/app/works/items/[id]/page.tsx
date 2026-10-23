@@ -335,22 +335,25 @@ export default function MobileWorkItemDetailPage() {
         }
     };
 
-    const handleDownloadPdf = (url: string, fileName: string) => {
+    const handleDownloadPdf = async (url: string, fileName: string) => {
         try {
-            const isAndroidApp = typeof window !== 'undefined' && (window as any).Android;
+            const response = await fetch(url, {
+                headers: getAuthHeaders() as HeadersInit
+            });
 
-            if (isAndroidApp && typeof (window as any).Android.downloadFromUrl === 'function') {
-                (window as any).Android.downloadFromUrl(url, fileName);
-            } else {
-                const link = document.createElement('a');
-                link.href = url;
-                link.target = '_blank';
-                link.download = fileName;
-
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            if (!response.ok) {
+                throw new Error(`다운로드 요청 실패: ${response.status}`);
             }
+
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
         } catch (err) {
             console.error("다운로드 실패:", err);
             alert("다운로드 중 오류가 발생했습니다.");
