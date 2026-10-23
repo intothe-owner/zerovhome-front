@@ -364,7 +364,17 @@ export default function MobileWorkItemDetailPage() {
     const categories = reportForm.categories || [];
     const textFields = reportForm.textFields || [];
     const imageFields = reportForm.imageFields || [];
-
+   let downloadFileName = `[${item.site?.title || '현장'}]_${item.customerName || '고객'}_보고서.pdf`;
+    
+    if (item?.rowData) {
+        // rowData 항목 중 "경로당"이라는 단어가 포함된 항목 찾기
+        const centerKey = Object.keys(item.rowData).find(key => key.includes("경로당"));
+        
+        // 해당 항목에 값이 존재하면 파일명을 경로당 이름으로 변경
+        if (centerKey && item.rowData[centerKey]) {
+            downloadFileName = `${item.rowData[centerKey]}_보고서.pdf`;
+        }
+    }
     return (
         <div className="min-h-screen bg-slate-50 text-gray-900 pb-24">
             <header className="sticky top-0 z-40 flex h-14 items-center justify-between px-4 bg-white border-b border-gray-200 shadow-sm">
@@ -388,12 +398,7 @@ export default function MobileWorkItemDetailPage() {
                 <section>
                     {item?.reportResult ? (
                         <button
-                            onClick={() => {
-                                const pdfDownloadUrl = item.reportResult.pdfPath
-                                    ? item.reportResult.pdfPath
-                                    : `${API_BASE_URL}/api/work-items/${itemId}/pdf`;
-                                handleDownloadPdf(pdfDownloadUrl, `[${item.site?.title || '작업현장'}]_${item.customerName || '고객'}_보고서.pdf`);
-                            }}
+                            onClick={() => handleDownloadPdf(`${API_BASE_URL}/api/work-items/${itemId}/pdf`, downloadFileName)}
                             disabled={isDownloadingPdf}
                             className={`w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 border border-red-200 text-xs font-bold rounded-xl shadow-sm transition ${isDownloadingPdf ? "opacity-70 cursor-not-allowed" : "hover:bg-red-100"
                                 }`}

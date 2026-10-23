@@ -387,6 +387,18 @@ export default function WorkItemDetailPage() {
     const textFields = reportForm.textFields || [];
     const imageFields = reportForm.imageFields || [];
 
+    let downloadFileName = `[${item.site?.title || '현장'}]_${item.customerName || '고객'}_보고서.pdf`;
+    
+    if (item?.rowData) {
+        // rowData 항목 중 "경로당"이라는 단어가 포함된 항목 찾기
+        const centerKey = Object.keys(item.rowData).find(key => key.includes("경로당"));
+        
+        // 해당 항목에 값이 존재하면 파일명을 경로당 이름으로 변경
+        if (centerKey && item.rowData[centerKey]) {
+            downloadFileName = `${item.rowData[centerKey]}_보고서.pdf`;
+        }
+    }
+
     return (
         <div className="p-6 max-w-5xl mx-auto space-y-6 pb-20">
             {/* 상단 헤더 */}
@@ -439,7 +451,8 @@ export default function WorkItemDetailPage() {
                 {item?.reportResult ? (
                     <div className="flex flex-wrap gap-3">
                         <button
-                            onClick={() => handleDownloadPdf(`${API_BASE_URL}/api/work-items/${itemId}/pdf`, `[${item.site?.title || '현장'}]_${item.customerName || '고객'}_보고서.pdf`)}
+                            // 💡 파일명 파라미터에 동적 변수인 downloadFileName 적용
+                            onClick={() => handleDownloadPdf(`${API_BASE_URL}/api/work-items/${itemId}/pdf`, downloadFileName)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 font-bold border border-red-200 rounded-xl hover:bg-red-100 hover:border-red-300 transition shadow-sm cursor-pointer"
                         >
                             <FileText size={18} /> 통합 보고서 PDF 다운로드
