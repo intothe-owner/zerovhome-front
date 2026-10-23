@@ -4,8 +4,7 @@ import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Reorder, useDragControls } from "framer-motion";
-import { Play, RotateCcw, Navigation, Loader2, ArrowLeft, Trash2, CheckCircle, Search, X } from "lucide-react";
+import { Play, RotateCcw, Navigation, Loader2, ArrowLeft, Trash2, CheckCircle, Search, X, ChevronUp, ChevronDown } from "lucide-react";
 import SwipeableWorkItem from "@/components/app/SwipeableWorkItem";
 import { openKakaoNavi } from "@/lib/navigation";
 
@@ -160,6 +159,18 @@ function MobileSiteWorkListContent() {
     }
   };
 
+  const handleMoveItem = (index: number, direction: "up" | "down") => {
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === localItems.length - 1) return;
+
+    const newOrder = [...localItems];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    
+    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
+    
+    handleReorder(newOrder);
+  };
+
   const updateTab = (tab: string) => {
     router.replace(`/app/works/${siteId}?tab=${tab}`);
   };
@@ -220,35 +231,23 @@ function MobileSiteWorkListContent() {
           </div>
         ) : (
           <div className="bg-white shadow-sm border-y border-gray-200 md:border-x md:rounded-2xl">
-            {activeTab === "IN_PROGRESS" ? (
-              <Reorder.Group axis="y" values={localItems} onReorder={handleReorder} className="m-0 p-0 list-none">
-                {localItems.map((item: any) => (
-                  <DraggableListItem 
-                    key={item.id} 
-                    item={item} 
-                    activeTab={activeTab} 
-                    mobileFields={mobileFields} 
-                    onSwipeAction={() => handleSwipeAction(item.id, item.status)}
-                    onComplete={() => handleCompleteTask(item.id)}
-                    onCancel={() => handleCancelTask(item.id)}
-                  />
-                ))}
-              </Reorder.Group>
-            ) : (
-              <div>
-                {localItems.map((item: any) => (
-                  <StaticListItem 
-                    key={item.id} 
-                    item={item} 
-                    activeTab={activeTab} 
-                    mobileFields={mobileFields} 
-                    onSwipeAction={() => handleSwipeAction(item.id, item.status)}
-                    onComplete={() => handleCompleteTask(item.id)}
-                    onCancel={() => handleCancelTask(item.id)}
-                  />
-                ))}
-              </div>
-            )}
+            <div>
+              {localItems.map((item: any, index: number) => (
+                <StaticListItem 
+                  key={item.id} 
+                  item={item} 
+                  index={index}
+                  totalItems={localItems.length}
+                  activeTab={activeTab} 
+                  mobileFields={mobileFields} 
+                  onSwipeAction={() => handleSwipeAction(item.id, item.status)}
+                  onComplete={() => handleCompleteTask(item.id)}
+                  onCancel={() => handleCancelTask(item.id)}
+                  onMoveUp={() => handleMoveItem(index, "up")}
+                  onMoveDown={() => handleMoveItem(index, "down")}
+                />
+              ))}
+            </div>
             
             <div ref={loadMoreRef} className="py-6 text-center">
               {isFetchingNextPage && <Loader2 className="animate-spin text-blue-600 mx-auto" size={24} />}
@@ -260,28 +259,7 @@ function MobileSiteWorkListContent() {
   );
 }
 
-function DraggableListItem({ item, activeTab, mobileFields, onSwipeAction, onComplete, onCancel }: any) {
-  const dragControls = useDragControls();
-  if (item.status === 'CANCELED') {
-    return <StaticListItem item={item} activeTab={activeTab} mobileFields={mobileFields} onSwipeAction={onSwipeAction} onComplete={onComplete} onCancel={onCancel} />;
-  }
-  return (
-    <Reorder.Item value={item} id={String(item.id)} dragListener={false} dragControls={dragControls}>
-      <div className="touch-none select-none" onPointerDown={(e) => dragControls.start(e)}>
-        <StaticListItem 
-          item={item} 
-          activeTab={activeTab} 
-          mobileFields={mobileFields} 
-          onSwipeAction={onSwipeAction} 
-          onComplete={onComplete}
-          onCancel={onCancel}
-        />
-      </div>
-    </Reorder.Item>
-  );
-}
-
-function StaticListItem({ item, activeTab, mobileFields, onSwipeAction, onComplete, onCancel, hideBorder }: any) {
+function StaticListItem({ item, index, totalItems, activeTab, mobileFields, onSwipeAction, onComplete, onCancel, onMoveUp, onMoveDown, hideBorder }: any) {
   const router = useRouter();
   const isCanceled = item.status === 'CANCELED';
 
@@ -297,7 +275,7 @@ function StaticListItem({ item, activeTab, mobileFields, onSwipeAction, onComple
     <div 
       onClick={() => {
         if (!isCanceled) {
-          router.push(`/app/works/items/${item.id}`); // 💡 상세 페이지로 이동하는 링크 연결
+          router.push(`/app/works/items/${item.id}`);
         }
       }}
       className={`p-5 bg-white cursor-pointer ${isCanceled ? 'bg-gray-100 opacity-60 pointer-events-none grayscale' : 'active:bg-gray-50'} ${hideBorder ? '' : 'border-b border-gray-100'}`}
@@ -317,8 +295,8 @@ function StaticListItem({ item, activeTab, mobileFields, onSwipeAction, onComple
           
           <div className="flex flex-col gap-0.5">
             {validFields.length > 0 ? (
-              validFields.map((f: any, index: number) => {
-                if (index === 0) {
+              validFields.map((f: any, idx: number) => {
+                if (idx === 0) {
                   return (
                     <h3 key={f.key} className="text-[17px] font-black text-gray-900 leading-snug">
                       {f.val}
@@ -340,7 +318,25 @@ function StaticListItem({ item, activeTab, mobileFields, onSwipeAction, onComple
         </div>
         
         {activeTab === "IN_PROGRESS" && !isCanceled && (
-          <div className="flex items-center gap-2 shrink-0" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-1.5 shrink-0" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-gray-50 mr-1 shadow-sm">
+              <button 
+                onClick={onMoveUp} 
+                disabled={index === 0} 
+                className="flex items-center justify-center p-1.5 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-gray-50 transition"
+              >
+                <ChevronUp size={16} />
+              </button>
+              <div className="h-px bg-gray-200 w-full" />
+              <button 
+                onClick={onMoveDown} 
+                disabled={index === totalItems - 1} 
+                className="flex items-center justify-center p-1.5 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-gray-50 transition"
+              >
+                <ChevronDown size={16} />
+              </button>
+            </div>
+
             <button 
               onClick={onCancel}
               className="flex flex-col items-center justify-center w-12 h-14 rounded-xl border border-red-200 text-red-500 bg-red-50/50 hover:bg-red-100 transition shadow-sm"
