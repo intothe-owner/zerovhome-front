@@ -56,18 +56,23 @@ export default function WorkItemMonitorPage() {
     const pageSize = 20;
 
     const [currentListFields, setCurrentListFields] = useState<string[]>([]);
-
     const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+    
+    // 배정 모달 관련 상태
     const [isAssignModalOpen, setIsAssignModalOpen] = useState<boolean>(false);
     const [members, setMembers] = useState<any[]>([]);
     const [assignKeyword, setAssignKeyword] = useState<string>("");
     const [assignLoading, setAssignLoading] = useState<boolean>(false);
 
+    // 상태 변경 모달 관련 상태
+    const [isStatusModalOpen, setIsStatusModalOpen] = useState<boolean>(false);
+    const [targetBulkStatus, setTargetBulkStatus] = useState<string>("COMPLETED");
+    const [statusLoading, setStatusLoading] = useState<boolean>(false);
+
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
     const fetchSites = async () => {
         try {
-            // 💡 [수정됨] 인증 헤더를 추가하여 백엔드에서 사용자 레벨을 식별할 수 있게 함
             const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`, {
                 headers: getAuthHeaders()
             });
@@ -195,6 +200,7 @@ export default function WorkItemMonitorPage() {
         );
     };
 
+    // 일괄 배정 실행
     const handleExecuteAssign = async (memberId: number, memberName: string) => {
         if (selectedItemIds.length === 0) return;
 
@@ -222,6 +228,35 @@ export default function WorkItemMonitorPage() {
             alert("작업자 배정 중 오류가 발생했습니다.");
         } finally {
             setAssignLoading(false);
+        }
+    };
+
+    // 일괄 상태 변경 실행
+    const handleExecuteBulkStatus = async () => {
+        if (selectedItemIds.length === 0) return;
+
+        try {
+            setStatusLoading(true);
+            const response = await axios.post(`${API_BASE_URL}/api/work-items/bulk-status`, {
+                itemIds: selectedItemIds,
+                status: targetBulkStatus
+            }, {
+                headers: getAuthHeaders()
+            });
+
+            if (response.data.ok) {
+                alert(`선택한 ${selectedItemIds.length}개의 작업 상태가 변경되었습니다.`);
+                setIsStatusModalOpen(false);
+                setSelectedItemIds([]);
+                fetchItems(); 
+            } else {
+                alert("상태 변경에 실패했습니다.");
+            }
+        } catch (err) {
+            console.error("일괄 상태 변경 에러:", err);
+            alert("상태 변경 중 오류가 발생했습니다.");
+        } finally {
+            setStatusLoading(false);
         }
     };
 
@@ -284,13 +319,22 @@ export default function WorkItemMonitorPage() {
                 </h2>
 
                 {selectedItemIds.length > 0 && (
-                    <button
-                        onClick={() => setIsAssignModalOpen(true)}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm animate-pulse"
-                    >
-                        <UserCheck size={18} />
-                        선택한 작업자 배정 ({selectedItemIds.length}건)
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setIsStatusModalOpen(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm animate-pulse"
+                        >
+                            <CheckCircle2 size={18} />
+                            상태 일괄 변경 ({selectedItemIds.length}건)
+                        </button>
+                        <button
+                            onClick={() => setIsAssignModalOpen(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm animate-pulse"
+                        >
+                            <UserCheck size={18} />
+                            선택한 작업자 배정 ({selectedItemIds.length}건)
+                        </button>
+                    </div>
                 )}
             </div>
 
@@ -570,6 +614,53 @@ export default function WorkItemMonitorPage() {
                                 className="px-5 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition text-sm"
                             >
                                 취소
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 상태 일괄 변경 모달 */}
+            {isStatusModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
+                        <div className="flex items-center justify-between border-b pb-3">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <CheckCircle2 className="text-emerald-600" /> 작업 상태 일괄 변경
+                            </h3>
+                            <button onClick={() => setIsStatusModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <p className="text-sm text-slate-600">
+                            선택한 총 <b className="text-emerald-600">{selectedItemIds.length}건</b>의 작업을 어떤 상태로 변경하시겠습니까?
+                        </p>
+
+                        <select
+                            value={targetBulkStatus}
+                            onChange={(e) => setTargetBulkStatus(e.target.value)}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700"
+                        >
+                            <option value="PENDING">대기중</option>
+                            <option value="IN_PROGRESS">진행중</option>
+                            <option value="COMPLETED">작업완료</option>
+                            <option value="CANCELED">취소됨</option>
+                        </select>
+
+                        <div className="flex justify-end gap-2 pt-4">
+                            <button
+                                onClick={() => setIsStatusModalOpen(false)}
+                                className="px-5 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition text-sm"
+                                disabled={statusLoading}
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={handleExecuteBulkStatus}
+                                className="px-5 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition text-sm flex items-center gap-2"
+                                disabled={statusLoading}
+                            >
+                                {statusLoading ? "변경 중..." : "상태 변경 실행"}
                             </button>
                         </div>
                     </div>
