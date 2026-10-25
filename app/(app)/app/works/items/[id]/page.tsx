@@ -346,17 +346,36 @@ export default function MobileWorkItemDetailPage() {
             }
 
             const blob = await response.blob();
-            const blobUrl = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(blobUrl);
-            setTimeout(() => {
-                window.URL.revokeObjectURL(blobUrl);
-            }, 5000);
+
+            // 💡 1. 안드로이드 앱(WebView) 접속인지 확인하고 브릿지 호출
+            // @ts-ignore (TypeScript 에러 방지용)
+            if (typeof window !== 'undefined' && window.Android && window.Android.downloadFromBase64) {
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = () => {
+                    // "data:application/pdf;base64,JVBER..." 형태에서 순수 데이터(Base64)만 추출
+                    const base64data = (reader.result as string).split(',')[1];
+
+                    // 안드로이드 네이티브 브릿지 함수 직접 실행 (이때 Failed to fetch 에러 원천 차단됨)
+                    // @ts-ignore
+                    window.Android.downloadFromBase64(base64data, fileName, blob.type);
+                };
+            }
+            // 💡 2. 일반 PC 웹 브라우저나 아이폰(iOS)인 경우 기존 방식 사용
+            else {
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // 다른 브라우저에서도 안전하게 다운로드되도록 5초 지연 삭제
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(blobUrl);
+                }, 5000);
+            }
         } catch (err) {
             console.error("다운로드 실패:", err);
             alert("다운로드 중 오류가 발생했습니다.");
@@ -372,11 +391,11 @@ export default function MobileWorkItemDetailPage() {
     const imageFields = reportForm.imageFields || [];
     // 💡 [추가] PDF 다운로드 파일명 동적 생성 로직 (경로당명 확인)
     let downloadFileName = `[${item.site?.title || '현장'}]_${item.customerName || '고객'}_보고서.pdf`;
-    
+
     if (item?.rowData) {
         // rowData 항목 중 "경로당"이라는 단어가 포함된 항목 찾기
         const centerKey = Object.keys(item.rowData).find(key => key.includes("경로당"));
-        
+
         // 해당 항목에 값이 존재하면 파일명을 경로당 이름으로 변경
         if (centerKey && item.rowData[centerKey]) {
             downloadFileName = `${item.rowData[centerKey]}_보고서.pdf`;
