@@ -354,6 +354,9 @@ export default function MobileWorkItemDetailPage() {
             link.click();
             document.body.removeChild(link);
             window.URL.revokeObjectURL(blobUrl);
+            setTimeout(() => {
+                window.URL.revokeObjectURL(blobUrl);
+            }, 5000);
         } catch (err) {
             console.error("다운로드 실패:", err);
             alert("다운로드 중 오류가 발생했습니다.");
