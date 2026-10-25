@@ -6,6 +6,16 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import CustomEditor from '@/components/main/CustomEditor';
 
+// URL에서 파일명만 추출하는 헬퍼 함수
+const getFileName = (url: string) => {
+  try {
+    const decoded = decodeURIComponent(url);
+    return decoded.split('/').pop() || '첨부파일';
+  } catch {
+    return '첨부파일';
+  }
+};
+
 export default function PostEditPage({ params }: { params: Promise<{ id: string, postId: string }> }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -13,14 +23,17 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
   const { id: boardId, postId } = resolvedParams;
 
   const [boardConfig, setBoardConfig] = useState<any>(null);
-  const [files, setFiles] = useState<File[]>([]);
-  const [existingFiles, setExistingFiles] = useState<string[]>([]);
-  const [formData, setFormData] = useState({ writerName: '', password: '', title: '', content: '', category: '' });
   
+  // 파일 관련 상태
+  const [files, setFiles] = useState<File[]>([]); // 새로 업로드할 파일
+  const [existingFiles, setExistingFiles] = useState<string[]>([]); // 기존 유지할 파일 URL 목록
+  
+  const [formData, setFormData] = useState({ writerName: '', password: '', title: '', content: '', category: '' });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [extraData, setExtraData] = useState<Record<string, any>>({});
   const [editorFiles, setEditorFiles] = useState<{ file: File, id: string }[]>([]);
 
+  // 드래그 앤 드롭 상태
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,14 +97,47 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
     setEditorFiles(prev => [...prev, { file, id }]);
   };
 
+  // --- 드래그 앤 드롭 및 파일 추가/삭제 로직 시작 ---
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFiles(Array.from(e.dataTransfer.files));
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      addFiles(Array.from(e.target.files));
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const addFiles = (newFiles: File[]) => {
     setFiles(prev => {
-      const totalFiles = [...prev, ...newFiles];
-      if (totalFiles.length > boardConfig.fileUploadCount) {
-        alert(`첨부파일은 최대 ${boardConfig.fileUploadCount}개까지만 업로드 가능합니다.`);
-        return totalFiles.slice(0, boardConfig.fileUploadCount);
+      const currentTotalFiles = existingFiles.length + prev.length;
+      const spaceLeft = boardConfig.fileUploadCount - currentTotalFiles;
+      
+      if (newFiles.length > spaceLeft) {
+        alert(`첨부파일은 기존 파일을 포함해 최대 ${boardConfig.fileUploadCount}개까지만 업로드 가능합니다.`);
+        const allowedNewFiles = newFiles.slice(0, spaceLeft);
+        return [...prev, ...allowedNewFiles];
       }
-      return totalFiles;
+      return [...prev, ...newFiles];
     });
   };
 
@@ -102,6 +148,7 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
   const removeExistingFile = (indexToRemove: number) => {
     setExistingFiles(prev => prev.filter((_, index) => index !== indexToRemove));
   };
+  // --- 파일 로직 끝 ---
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -133,12 +180,15 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
 
     if (formData.category) submitData.append('category', formData.category);
     if (Object.keys(extraData).length > 0) submitData.append('extraData', JSON.stringify(extraData));
+    
+    // 백엔드로 기존 파일 중 유지되는 목록 전달
     submitData.append('existingFiles', JSON.stringify(existingFiles));
 
     editorFiles.forEach(ef => {
       submitData.append('editorImages', ef.file, `${ef.id}.${ef.file.name.split('.').pop()}`);
     });
 
+    // 백엔드로 신규 업로드 파일 전달
     files.forEach((file) => { if (file) submitData.append('attachments', file); });
 
     editMutation.mutate(submitData);
@@ -147,6 +197,7 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
   if (!boardConfig) return <div className="w-full text-center pt-32 text-slate-500 font-medium">로딩 중...</div>;
 
   const categories = boardConfig.categories ? boardConfig.categories.split(',').map((c: string) => c.trim()) : [];
+  const currentTotalFileCount = existingFiles.length + files.length;
 
   return (
     <div className="w-full flex flex-col pt-24 pb-24 bg-slate-50/50 min-h-screen">
@@ -193,6 +244,54 @@ export default function PostEditPage({ params }: { params: Promise<{ id: string,
                 <textarea name="content" value={formData.content} required rows={12} onChange={handleChange} className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 resize-none leading-relaxed" />
               )}
             </div>
+
+            {/* 첨부파일 영역 */}
+            {boardConfig.fileUploadCount > 0 && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-end">
+                  <label className="text-sm font-bold text-slate-700">첨부파일</label>
+                  <span className="text-xs text-slate-500">({currentTotalFileCount} / {boardConfig.fileUploadCount}개)</span>
+                </div>
+                
+                <div 
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl transition-colors cursor-pointer ${isDragging ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
+                >
+                  <p className="text-sm text-slate-600 font-medium">클릭하거나 새로운 파일을 이곳으로 드래그 하세요.</p>
+                  <input type="file" multiple ref={fileInputRef} onChange={handleFileInputChange} className="hidden" />
+                </div>
+
+                {/* 첨부파일 리스트 렌더링 */}
+                {(existingFiles.length > 0 || files.length > 0) && (
+                  <ul className="mt-3 space-y-2">
+                    {/* 1. 기존 파일 리스트 */}
+                    {existingFiles.map((url, index) => (
+                      <li key={`existing-${index}`} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg shadow-sm">
+                        <div className="flex flex-col overflow-hidden">
+                          <span className="text-sm text-slate-700 truncate font-medium">{getFileName(url)}</span>
+                          <span className="text-xs text-slate-500">기존 첨부파일</span>
+                        </div>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); removeExistingFile(index); }} className="text-red-500 text-sm font-medium px-2 py-1 flex-shrink-0 hover:bg-red-50 rounded">삭제</button>
+                      </li>
+                    ))}
+                    
+                    {/* 2. 신규 추가 파일 리스트 */}
+                    {files.map((file, index) => (
+                      <li key={`new-${index}`} className="flex items-center justify-between p-3 bg-blue-50/30 border border-blue-100 rounded-lg shadow-sm">
+                        <div className="flex flex-col overflow-hidden">
+                          <span className="text-sm text-slate-700 truncate font-medium">{file.name}</span>
+                          <span className="text-xs text-blue-500">새로 추가됨</span>
+                        </div>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); removeFile(index); }} className="text-red-500 text-sm font-medium px-2 py-1 flex-shrink-0 hover:bg-red-50 rounded">삭제</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
               <button type="button" onClick={() => router.back()} className="px-6 py-3 font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50">취소</button>
