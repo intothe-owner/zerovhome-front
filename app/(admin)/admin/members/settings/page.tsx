@@ -13,6 +13,7 @@ export default function MemberSettingsPage() {
     usePhone: false,
     useMobile: true,
     useAddress: false,
+    useLocation: false,
     useDob: false,
 
     // 승인제 관련 상태
@@ -53,6 +54,7 @@ export default function MemberSettingsPage() {
             usePhone: Boolean(json.data.usePhone),
             useMobile: Boolean(json.data.useMobile),
             useAddress: Boolean(json.data.useAddress),
+            useLocation: Boolean(json.data.useLocation),
             useDob: Boolean(json.data.useDob),
 
             useApproval: Boolean(json.data.useApproval),
@@ -320,6 +322,18 @@ export default function MemberSettingsPage() {
               <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
                 <input type="checkbox" name="useAddress" checked={formData.useAddress} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded border-slate-300" />
                 <span className="text-sm font-semibold text-slate-700">주소 입력 사용</span>
+              </label>
+              {/* ✨ 신규 추가: 주소 입력이 활성화될 때만 위치 저장도 켤 수 있도록 구성하면 좋습니다 */}
+              <label className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${!formData.useAddress ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <input
+                  type="checkbox"
+                  name="useLocation"
+                  checked={formData.useLocation}
+                  onChange={handleChange}
+                  disabled={!formData.useAddress} // 주소 사용을 꺼두면 위치도 못 쓰게 막음
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300"
+                />
+                <span className="text-sm font-semibold text-slate-700">주소 위치(좌표) 저장 사용</span>
               </label>
               <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50">
                 <input type="checkbox" name="useDob" checked={formData.useDob} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded border-slate-300" />
