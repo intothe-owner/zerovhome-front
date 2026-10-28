@@ -192,7 +192,7 @@ export default function WorkItemMonitorPage() {
 
     useEffect(() => {
         fetchItems();
-    }, [selectedSite, selectedStatus, selectedMember, keyword, page, sites]);
+    }, [selectedSite, selectedStatus, selectedMember, keyword, page,sortOption, sites]);
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
