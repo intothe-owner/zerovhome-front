@@ -34,6 +34,14 @@ const fetchWorkSite = async (siteId: string) => {
   return data.data.find((s: any) => s.id === Number(siteId));
 };
 
+// 💡 정렬 옵션 라벨 매핑 객체
+const sortLabels: Record<string, string> = {
+  default: "기본순",
+  routeOrder: "번호순",
+  workDate: "작업완료순",
+  createdAt: "등록일순"
+};
+
 function MobileSiteWorkListContent() {
   const router = useRouter();
   const params = useParams();
@@ -47,6 +55,8 @@ function MobileSiteWorkListContent() {
   const [searchInput, setSearchInput] = useState("");
   const [keyword, setKeyword] = useState("");
 
+  const [sortOption, setSortOption] = useState<string>("default");
+  const [isSortModalOpen, setIsSortModalOpen] = useState<boolean>(false); // 💡 팝업 상태 추가
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -70,13 +80,12 @@ function MobileSiteWorkListContent() {
     const p: any = { 
       workSiteId: siteId, 
       status: targetStatus, 
-      sortField: 'routeOrder', 
-      sortOrder: 'ASC' 
+      sort: sortOption
     };
     if (keyword) p.keyword = keyword;
     if (userInfo && userInfo.level !== 10) p.assignedMemberId = userInfo.id;
     return p;
-  }, [siteId, activeTab, userInfo, keyword]);
+  }, [siteId, activeTab, userInfo, keyword, sortOption]);
 
   const {
     data: infiniteData,
@@ -193,6 +202,7 @@ function MobileSiteWorkListContent() {
           <h1 className="text-base font-bold truncate">{typedSiteInfo?.title || "현장별 작업 목록"}</h1>
         </div>
 
+        {/* 💡 기존 <select> 제거 후 검색창만 유지 */}
         <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
           <form onSubmit={handleSearchSubmit} className="flex gap-2">
             <div className="relative flex-1">
@@ -223,6 +233,17 @@ function MobileSiteWorkListContent() {
       </header>
 
       <main className="mx-auto w-full max-w-md py-4">
+        
+        {/* 💡 목록 바로 위 정렬 선택 버튼 추가 */}
+        <div className="flex justify-end px-4 mb-3">
+          <button 
+            onClick={() => setIsSortModalOpen(true)}
+            className="flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-800 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 shadow-sm"
+          >
+            정렬: {sortLabels[sortOption]} <ChevronDown size={14} />
+          </button>
+        </div>
+
         {isLoading ? (
           <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={32} /></div>
         ) : localItems.length === 0 ? (
@@ -255,6 +276,44 @@ function MobileSiteWorkListContent() {
           </div>
         )}
       </main>
+
+      {/* 💡 모바일 정렬 팝업(Bottom Sheet 스타일) */}
+      {isSortModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
+          onClick={() => setIsSortModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-5 animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg text-gray-900">정렬 기준</h3>
+              <button onClick={() => setIsSortModalOpen(false)} className="text-gray-400 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {Object.entries(sortLabels).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => {
+                    setSortOption(value);
+                    setIsSortModalOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors ${
+                    sortOption === value 
+                      ? 'bg-blue-50 text-blue-600' 
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,7 +16,7 @@ export default function WorkItemMonitorPage() {
             "Authorization": `Bearer ${cleanToken}`
         };
     };
-    
+
     const [items, setItems] = useState<any[]>([]);
     const [sites, setSites] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function WorkItemMonitorPage() {
         if (typeof window !== "undefined") return sessionStorage.getItem("work_selectedStatus") || "";
         return "";
     });
-    
+
     const [selectedMember, setSelectedMember] = useState<string>(() => {
         if (typeof window !== "undefined") return sessionStorage.getItem("work_selectedMember") || "";
         return "";
@@ -50,14 +50,14 @@ export default function WorkItemMonitorPage() {
         if (typeof window !== "undefined") return Number(sessionStorage.getItem("work_page")) || 1;
         return 1;
     });
-    
+
     const [totalPages, setTotalPages] = useState<number>(1);
     const [totalCount, setTotalCount] = useState<number>(0);
     const pageSize = 20;
 
     const [currentListFields, setCurrentListFields] = useState<string[]>([]);
     const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
-    
+
     // 배정 모달 관련 상태
     const [isAssignModalOpen, setIsAssignModalOpen] = useState<boolean>(false);
     const [members, setMembers] = useState<any[]>([]);
@@ -73,7 +73,10 @@ export default function WorkItemMonitorPage() {
     const [updatingItemId, setUpdatingItemId] = useState<number | null>(null);
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
-
+    const [sortOption, setSortOption] = useState<string>(() => {
+        if (typeof window !== "undefined") return sessionStorage.getItem("work_sortOption") || "default";
+        return "default";
+    });
     const fetchSites = async () => {
         try {
             const siteRes = await axios.get(`${API_BASE_URL}/api/work-sites`, {
@@ -139,6 +142,7 @@ export default function WorkItemMonitorPage() {
         sessionStorage.setItem("work_selectedMember", selectedMember);
         sessionStorage.setItem("work_keyword", keyword);
         sessionStorage.setItem("work_page", String(page));
+        sessionStorage.setItem("work_sortOption", sortOption);
     }, [selectedSite, selectedStatus, selectedMember, keyword, page]);
 
     const fetchItems = async () => {
@@ -161,7 +165,8 @@ export default function WorkItemMonitorPage() {
             let query = [`workSiteId=${selectedSite}`, `page=${page}`, `pageSize=${pageSize}`];
             if (selectedStatus) query.push(`status=${selectedStatus}`);
             if (keyword) query.push(`keyword=${encodeURIComponent(keyword)}`);
-            
+            if (sortOption !== "default") query.push(`sort=${sortOption}`);
+
             if (selectedMember) {
                 if (selectedMember === "UNASSIGNED") {
                     query.push(`workerName=미배정`);
@@ -221,8 +226,8 @@ export default function WorkItemMonitorPage() {
                 setIsAssignModalOpen(false);
                 setAssignKeyword("");
                 setSelectedItemIds([]);
-                fetchItems(); 
-                fetchAssigneeCounts(selectedSite); 
+                fetchItems();
+                fetchAssigneeCounts(selectedSite);
             } else {
                 alert("작업자 배정에 실패했습니다.");
             }
@@ -251,7 +256,7 @@ export default function WorkItemMonitorPage() {
                 alert(`선택한 ${selectedItemIds.length}개의 작업 상태가 변경되었습니다.`);
                 setIsStatusModalOpen(false);
                 setSelectedItemIds([]);
-                fetchItems(); 
+                fetchItems();
             } else {
                 alert("상태 변경에 실패했습니다.");
             }
@@ -289,7 +294,7 @@ export default function WorkItemMonitorPage() {
 
     const handleSiteChange = (val: string) => {
         setSelectedSite(val);
-        setSelectedMember(""); 
+        setSelectedMember("");
         setPage(1);
     };
 
@@ -374,19 +379,19 @@ export default function WorkItemMonitorPage() {
                     </select>
                 </div>
 
-                <div className="w-40">
-                    <label className="block text-sm font-semibold text-slate-600 mb-1">상태 필터</label>
+
+                <div className="w-36">
+                    <label className="block text-sm font-semibold text-slate-600 mb-1">정렬 기준</label>
                     <select
-                        value={selectedStatus}
-                        onChange={(e) => handleStatusChange(e.target.value)}
+                        value={sortOption}
+                        onChange={(e) => { setSortOption(e.target.value); setPage(1); }}
                         disabled={!selectedSite}
                         className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 disabled:opacity-50"
                     >
-                        <option value="">전체 상태</option>
-                        <option value="PENDING">대기중</option>
-                        <option value="IN_PROGRESS">진행중</option>
-                        <option value="COMPLETED">작업완료</option>
-                        <option value="CANCELED">취소됨</option>
+                        <option value="default">기본</option>
+                        <option value="routeOrder">번호순</option>
+                        <option value="workDate">작업완료순</option>
+                        <option value="createdAt">등록일순</option>
                     </select>
                 </div>
 
@@ -438,7 +443,30 @@ export default function WorkItemMonitorPage() {
                     </form>
                 </div>
             </div>
-
+            <div className="flex items-center gap-2 border-b border-slate-200 mt-2 mb-4 px-2">
+                {[
+                    { label: "전체 상태", value: "" },
+                    { label: "대기중", value: "PENDING" },
+                    { label: "진행중", value: "IN_PROGRESS" },
+                    { label: "작업완료", value: "COMPLETED" },
+                    { label: "취소됨", value: "CANCELED" }
+                ].map((tab) => {
+                    const isActive = selectedStatus === tab.value;
+                    return (
+                        <button
+                            key={tab.value}
+                            onClick={() => handleStatusChange(tab.value)}
+                            disabled={!selectedSite}
+                            className={`px-5 py-3 text-sm font-bold border-b-2 transition-all flex-1 sm:flex-none text-center ${isActive
+                                    ? "border-indigo-600 text-indigo-600 bg-indigo-50/50" // 선택된 탭 스타일
+                                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300" // 기본 탭 스타일
+                                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                        >
+                            {tab.label}
+                        </button>
+                    );
+                })}
+            </div>
             {/* 데이터 테이블 */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                 <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
@@ -536,9 +564,9 @@ export default function WorkItemMonitorPage() {
                                                         onChange={(e) => handleSingleStatusChange(item.id, e.target.value)}
                                                         className={`text-xs font-bold rounded-lg px-2.5 py-1 border focus:outline-none cursor-pointer appearance-none text-center
                                                             ${item.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                                                              item.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                                                              item.status === 'CANCELED' ? 'bg-red-50 text-red-600 border-red-200' :
-                                                              'bg-slate-100 text-slate-600 border-slate-200'
+                                                                item.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                                                    item.status === 'CANCELED' ? 'bg-red-50 text-red-600 border-red-200' :
+                                                                        'bg-slate-100 text-slate-600 border-slate-200'
                                                             }`}
                                                     >
                                                         <option value="PENDING">대기중</option>
