@@ -496,7 +496,8 @@ export default function WorkItemMonitorPage() {
                                 {currentListFields.map((field) => (
                                     <th key={field} className="p-4">{field}</th>
                                 ))}
-                                <th className="p-4 w-32">담당자</th>
+                                {/* <th className="p-4 w-32">담당자</th> */}
+                                <th className="p-4 w-32">작업일자</th>
                                 <th className="p-4 text-center w-28">위치 확인</th>
                                 <th className="p-4 text-center w-36">상태 관리</th>
                             </tr>
@@ -540,8 +541,11 @@ export default function WorkItemMonitorPage() {
                                                 </td>
                                             ))}
                                             <td className="p-4 font-bold text-slate-700">
-                                                {item.workerName ? <span className="text-indigo-600">{item.workerName}</span> : <span className="text-red-400 font-normal">미배정</span>}
+                                                {item.workDate ? <span className="text-indigo-600">{item.workDate}</span> : <span className="text-red-400 font-normal">작업전</span>}
                                             </td>
+                                            {/* <td className="p-4 font-bold text-slate-700">
+                                                {item.workerName ? <span className="text-indigo-600">{item.workerName}</span> : <span className="text-red-400 font-normal">미배정</span>}
+                                            </td> */}
                                             <td className="p-4 text-center">
                                                 {item.latitude ? (
                                                     <span className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
