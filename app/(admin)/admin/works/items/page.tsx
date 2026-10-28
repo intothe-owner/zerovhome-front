@@ -143,7 +143,7 @@ export default function WorkItemMonitorPage() {
         sessionStorage.setItem("work_keyword", keyword);
         sessionStorage.setItem("work_page", String(page));
         sessionStorage.setItem("work_sortOption", sortOption);
-    }, [selectedSite, selectedStatus, selectedMember, keyword, page]);
+    }, [selectedSite, selectedStatus, selectedMember, keyword, page,sortOption]);
 
     const fetchItems = async () => {
         if (!selectedSite) {
