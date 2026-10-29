@@ -369,7 +369,7 @@ function StaticListItem({ item, index, totalItems, activeTab, mobileFields, onSw
                 );
               })
             ) : null}
-            작업일 : <h2>{item.workDate?item.workDate:null}</h2>
+            <h2> {item.workDate?`작업일 : ${item.workDate}`:''}</h2>
           </div>
         </div>
         
