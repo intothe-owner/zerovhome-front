@@ -591,7 +591,7 @@ export default function WorkItemDetailPage() {
                                                                 const prefixName = centerKey && item.rowData[centerKey] ? item.rowData[centerKey] : (item.customerName || "");
                                                                 
                                                                 // 💡 3. 최종 파일명 조합 (경로당이름_사진이름.jpg)
-                                                                const finalFileName = prefixName ? `${prefixName}_${subKeyName}.jpg` : `${subKeyName}.jpg`;
+                                                                const finalFileName = prefixName ? `${prefixName}_공기청정기_${subKeyName}.jpg` : `${subKeyName}.jpg`;
 
                                                                 handleDownloadImage(currentImg, finalFileName);
                                                             }}
