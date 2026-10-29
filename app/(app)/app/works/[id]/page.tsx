@@ -368,11 +368,8 @@ function StaticListItem({ item, index, totalItems, activeTab, mobileFields, onSw
                   </p>
                 );
               })
-            ) : (
-              <h3 className="text-[17px] font-black text-gray-900 leading-snug">
-                {item.customerName || "데이터 없음"}
-              </h3>
-            )}
+            ) : null}
+            <h2>{item.workDate?item.workDate:null}</h2>
           </div>
         </div>
         

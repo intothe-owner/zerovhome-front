@@ -39,16 +39,6 @@ const MENU_GROUPS = [
     ]
   },
   {
-    id: "applications",
-    title: "기존 신청 내역",
-    items: [
-      { name: "설문조사 설정", href: "/admin/clean/survey", icon: ClipboardList },
-      { name: "클린UP 관리", href: "/admin/clean/cleanup", icon: Sparkles },
-      { name: "경로당 관리", href: "/admin/clean/senior", icon: Home },
-      { name: "일반고객 관리", href: "/admin/clean/customers", icon: UserPlus },
-    ]
-  },
-  {
     id: "contents",
     title: "컨텐츠 관리",
     items: [
