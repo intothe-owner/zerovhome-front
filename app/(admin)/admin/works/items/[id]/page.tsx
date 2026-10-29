@@ -289,6 +289,38 @@ export default function WorkItemDetailPage() {
             alert("이미지를 다운로드하는 중 오류가 발생했습니다.");
         }
     };
+    // 💡 모든 사진 한 번에 다운로드하는 핸들러
+    const handleDownloadAllImages = async () => {
+        // 다운로드할 이미지가 있는지 확인
+        const validImageKeys = Object.keys(imageAnswers).filter(key => !!imageAnswers[key]);
+
+        if (validImageKeys.length === 0) {
+            alert("다운로드할 사진이 없습니다.");
+            return;
+        }
+
+        // 브라우저 다중 다운로드 허용 안내
+        if (!confirm(`총 ${validImageKeys.length}장의 사진을 모두 다운로드하시겠습니까?\n(※ 브라우저 상단에 '여러 파일 다운로드 허용' 팝업이 뜨면 허용해주세요.)`)) {
+            return;
+        }
+
+        // 경로당(고객명) 접두사 추출
+        const centerKey = item?.rowData ? Object.keys(item.rowData).find(key => key.includes("경로당")) : null;
+        const prefixName = centerKey && item.rowData[centerKey] ? item.rowData[centerKey] : (item.customerName || "");
+
+        for (let i = 0; i < validImageKeys.length; i++) {
+            const key = validImageKeys[i];
+            const imageUrl = imageAnswers[key];
+            
+            // 파일명 조합 (예: 경로당이름_사진항목.jpg)
+            const finalFileName = prefixName ? `${prefixName}_${key}.jpg` : `${key}.jpg`;
+
+            await handleDownloadImage(imageUrl, finalFileName);
+            
+            // 💡 브라우저가 다중 다운로드를 악성 팝업으로 오해하고 차단하지 않도록 0.5초 간격을 줍니다.
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    };
 
     const handleTextChange = (fieldName: string, value: string) => {
         setTextAnswers(prev => ({ ...prev, [fieldName]: value }));
@@ -492,6 +524,13 @@ export default function WorkItemDetailPage() {
             {imageFields.length > 0 && (
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                     <h3 className="text-lg font-bold text-slate-800 border-b pb-3">현장 사진 첨부 {activeCategory && `(${activeCategory})`}</h3>
+                    <button
+                            type="button"
+                            onClick={handleDownloadAllImages}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded-xl hover:bg-slate-900 transition shadow-sm"
+                        >
+                            <Download size={16} /> 모든 사진 한 번에 받기
+                        </button>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {imageFields.map((field: any) => {
                             const isHalf = field.layout === 'HALF';
