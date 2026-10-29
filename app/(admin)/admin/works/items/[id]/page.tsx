@@ -347,11 +347,11 @@ export default function WorkItemDetailPage() {
     const imageFields = reportForm.imageFields || [];
 
     let downloadFileName = `[${item.site?.title || '현장'}]_${item.customerName || '고객'}_보고서.pdf`;
-    
+
     if (item?.rowData) {
         // rowData 항목 중 "경로당"이라는 단어가 포함된 항목 찾기
         const centerKey = Object.keys(item.rowData).find(key => key.includes("경로당"));
-        
+
         // 해당 항목에 값이 존재하면 파일명을 경로당 이름으로 변경
         if (centerKey && item.rowData[centerKey]) {
             downloadFileName = `${item.rowData[centerKey]}_보고서.pdf`;
@@ -486,97 +486,113 @@ export default function WorkItemDetailPage() {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                     <h3 className="text-lg font-bold text-slate-800 border-b pb-3">현장 사진 첨부 {activeCategory && `(${activeCategory})`}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {imageFields.map((field: any) => {
-                            const isHalf = field.layout === 'HALF';
-                            const isSplit = field.layout === 'SPLIT';
+                        {imageFields.length > 0 && (
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                                <h3 className="text-lg font-bold text-slate-800 border-b pb-3">현장 사진 첨부 {activeCategory && `(${activeCategory})`}</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    {imageFields.map((field: any) => {
+                                        const isHalf = field.layout === 'HALF';
+                                        const isSplit = field.layout === 'SPLIT';
 
-                            let slots: { name: string, titleSuffix: string, colSpan: string }[] = [];
+                                        let slots: { name: string, titleSuffix: string, colSpan: string }[] = [];
 
-                            if (isHalf) {
-                                slots = [
-                                    { name: `${field.name} 1`, titleSuffix: "(2장 중 1번째)", colSpan: "col-span-1" },
-                                    { name: `${field.name} 2`, titleSuffix: "(2장 중 2번째)", colSpan: "col-span-1" }
-                                ];
-                            } else if (isSplit) {
-                                slots = [
-                                    { name: field.name, titleSuffix: "", colSpan: "col-span-1" },
-                                    { name: field.name2, titleSuffix: "", colSpan: "col-span-1" }
-                                ];
-                            } else {
-                                slots = [
-                                    { name: field.name, titleSuffix: "", colSpan: "md:col-span-2" }
-                                ];
-                            }
+                                        if (isHalf) {
+                                            slots = [
+                                                { name: `${field.name} 1`, titleSuffix: "(2장 중 1번째)", colSpan: "col-span-1" },
+                                                { name: `${field.name} 2`, titleSuffix: "(2장 중 2번째)", colSpan: "col-span-1" }
+                                            ];
+                                        } else if (isSplit) {
+                                            slots = [
+                                                { name: field.name, titleSuffix: "", colSpan: "col-span-1" },
+                                                { name: field.name2, titleSuffix: "", colSpan: "col-span-1" }
+                                            ];
+                                        } else {
+                                            slots = [
+                                                { name: field.name, titleSuffix: "", colSpan: "md:col-span-2" }
+                                            ];
+                                        }
 
-                            return slots.map(slot => {
-                                const subKeyName = slot.name;
-                                const fieldKey = activeCategory ? `${activeCategory}_${subKeyName}` : subKeyName;
-                                const currentImg = imageAnswers[fieldKey];
-                                const currentSize = imageSizes[fieldKey];
+                                        return slots.map(slot => {
+                                            const subKeyName = slot.name;
+                                            const fieldKey = activeCategory ? `${activeCategory}_${subKeyName}` : subKeyName;
+                                            const currentImg = imageAnswers[fieldKey];
+                                            const currentSize = imageSizes[fieldKey];
 
-                                return (
-                                    <div key={fieldKey} className={`p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 ${slot.colSpan}`}>
-                                        <label className="block text-sm font-bold text-slate-700">
-                                            {subKeyName} {slot.titleSuffix && <span className="text-xs text-indigo-600 font-normal ml-1">{slot.titleSuffix}1</span>}
-                                        </label>
+                                            return (
+                                                <div key={fieldKey} className={`p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 ${slot.colSpan}`}>
+                                                    <label className="block text-sm font-bold text-slate-700">
+                                                        {subKeyName} {slot.titleSuffix && <span className="text-xs text-indigo-600 font-normal ml-1">{slot.titleSuffix}</span>}
+                                                    </label>
 
-                                        <div className="border-2 border-dashed border-slate-300 rounded-xl p-2 bg-white hover:border-indigo-500 transition relative flex flex-col items-center justify-center overflow-hidden h-44 group">
-                                            {currentImg ? (
-                                                <>
-                                                    <img src={currentImg} alt={subKeyName} className="w-full h-full object-contain rounded-lg bg-black/5" />
+                                                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-2 bg-white hover:border-indigo-500 transition relative flex flex-col items-center justify-center overflow-hidden h-44 group">
+                                                        {currentImg ? (
+                                                            <>
+                                                                <img src={currentImg} alt={subKeyName} className="w-full h-full object-contain rounded-lg bg-black/5" />
 
-                                                    {/* 용량 뱃지 */}
-                                                    <div className="absolute top-2 left-2 bg-black/70 text-white text-[11px] font-bold px-2.5 py-1 rounded-md z-40 backdrop-blur-sm shadow-sm">
-                                                        {currentSize || "용량 계산 중..."}
+                                                                {/* 용량 뱃지 */}
+                                                                <div className="absolute top-2 left-2 bg-black/70 text-white text-[11px] font-bold px-2.5 py-1 rounded-md z-40 backdrop-blur-sm shadow-sm">
+                                                                    {currentSize || "용량 계산 중..."}
+                                                                </div>
+
+                                                                {/* 버튼 컨테이너 */}
+                                                                <div className="absolute top-2 right-2 flex items-center gap-2 z-50">
+                                                                    {/* 💡 개별 이미지 다운로드 버튼 */}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+
+                                                                            // 💡 1. 엑셀 데이터에서 '경로당' 키 찾기
+                                                                            const centerKey = item?.rowData ? Object.keys(item.rowData).find(key => key.includes("경로당")) : null;
+                                                                            // 💡 2. 경로당 값이 있으면 사용, 없으면 고객명(customerName)으로 대체
+                                                                            const prefixName = centerKey && item.rowData[centerKey] ? item.rowData[centerKey] : (item.customerName || "");
+
+                                                                            // 💡 3. 최종 파일명 조합 (경로당이름_사진이름.jpg)
+                                                                            const finalFileName = prefixName ? `${prefixName}_${subKeyName}.jpg` : `${subKeyName}.jpg`;
+
+                                                                            handleDownloadImage(currentImg, finalFileName);
+                                                                        }}
+                                                                        className="flex items-center justify-center w-9 h-9 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition active:scale-90"
+                                                                    >
+                                                                        <Download size={16} />
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            removeImage(fieldKey);
+                                                                        }}
+                                                                        className="flex items-center justify-center w-9 h-9 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition active:scale-90"
+                                                                    >
+                                                                        <X size={18} strokeWidth={3} />
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer hover:bg-slate-50 absolute inset-0 z-10">
+                                                                <div className="flex flex-col items-center text-slate-400 space-y-2">
+                                                                    <ImageIcon size={28} />
+                                                                    <span className="text-xs font-semibold">클릭하여 사진 등록</span>
+                                                                </div>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/*"
+                                                                    onChange={(e) => handleImageChange(fieldKey, e)}
+                                                                    className="hidden"
+                                                                />
+                                                            </label>
+                                                        )}
                                                     </div>
-
-                                                    {/* 버튼 컨테이너 */}
-                                                    <div className="absolute top-2 right-2 flex items-center gap-2 z-50">
-                                                        {/* 💡 에디터 버튼을 다운로드 버튼으로 교체 */}
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                handleDownloadImage(currentImg, `${subKeyName}.png`);
-                                                            }}
-                                                            className="flex items-center justify-center w-9 h-9 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition active:scale-90"
-                                                        >
-                                                            <Download size={16} />
-                                                        </button>
-
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                removeImage(fieldKey);
-                                                            }}
-                                                            className="flex items-center justify-center w-9 h-9 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition active:scale-90"
-                                                        >
-                                                            <X size={18} strokeWidth={3} />
-                                                        </button>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <label className="flex flex-col items-center justify-center w-full h-full cursor-pointer hover:bg-slate-50 absolute inset-0 z-10">
-                                                    <div className="flex flex-col items-center text-slate-400 space-y-2">
-                                                        <ImageIcon size={28} />
-                                                        <span className="text-xs font-semibold">클릭하여 사진 등록</span>
-                                                    </div>
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        onChange={(e) => handleImageChange(fieldKey, e)}
-                                                        className="hidden"
-                                                    />
-                                                </label>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            });
-                        })}
+                                                </div>
+                                            );
+                                        });
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -623,7 +639,7 @@ export default function WorkItemDetailPage() {
                     </div>
                 </div>
             )}
-            
+
             {/* 서명 입력 모달 창 */}
             {isSignModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
