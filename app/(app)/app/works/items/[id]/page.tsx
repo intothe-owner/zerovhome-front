@@ -452,12 +452,26 @@ export default function MobileWorkItemDetailPage() {
                     <h2 className="text-sm font-bold text-gray-800 mb-2 ml-1">개인/연락처 정보</h2>
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
                         {detailFields.length === 0 && <p className="text-xs text-gray-400">설정된 정보가 없습니다.</p>}
-                        {detailFields.map((field: string) => (
-                            <div key={field} className="flex flex-col gap-1">
-                                <span className="text-[11px] font-bold text-gray-400">{field}</span>
-                                <span className="text-sm font-bold text-gray-800">{item.rowData?.[field] || "-"}</span>
-                            </div>
-                        ))}
+                        {detailFields.map((field: string) => {
+                            const value = item.rowData?.[field];
+                            // 필드명에 '연락처'가 포함되어 있고, 실제 값이 존재하는지 확인
+                            const isPhoneNumber = field.includes("연락처") && value;
+
+                            return (
+                                <div key={field} className="flex flex-col gap-1">
+                                    <span className="text-[11px] font-bold text-gray-400">{field}</span>
+                                    <span className="text-sm font-bold text-gray-800">
+                                        {isPhoneNumber ? (
+                                            <a href={`tel:${value}`} className="text-blue-600 underline hover:text-blue-800">
+                                                {value}
+                                            </a>
+                                        ) : (
+                                            value || "-"
+                                        )}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
                 </section>
 

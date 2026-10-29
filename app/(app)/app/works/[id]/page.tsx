@@ -11,7 +11,7 @@ import { openKakaoNavi } from "@/lib/navigation";
 const getAuthHeaders = () => {
   if (typeof window === "undefined") return {};
   const rawToken = localStorage.getItem("token") || "";
-  const cleanToken = rawToken.replace(/^['"]|['"]$/g, ''); 
+  const cleanToken = rawToken.replace(/^['"]|['"]$/g, '');
   return {
     "Content-Type": "application/json",
     "Authorization": `Bearer ${cleanToken}`
@@ -20,16 +20,16 @@ const getAuthHeaders = () => {
 
 const fetchWorkItemsInfinite = async ({ pageParam = 1, queryKey }: any) => {
   const [, params] = queryKey;
-  const { data } = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000"}/api/work-items`, { 
-    params: { ...params, page: pageParam, pageSize: 15 }, 
-    headers: getAuthHeaders() 
+  const { data } = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000"}/api/work-items`, {
+    params: { ...params, page: pageParam, pageSize: 15 },
+    headers: getAuthHeaders()
   });
-  return data; 
+  return data;
 };
 
 const fetchWorkSite = async (siteId: string) => {
   const { data } = await axios.get(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000"}/api/work-sites`, {
-    headers: getAuthHeaders() 
+    headers: getAuthHeaders()
   });
   return data.data.find((s: any) => s.id === Number(siteId));
 };
@@ -47,7 +47,7 @@ function MobileSiteWorkListContent() {
   const params = useParams();
   const siteId = params.id as string;
   const searchParams = useSearchParams();
-  const activeTab = searchParams.get("tab") || "PENDING"; 
+  const activeTab = searchParams.get("tab") || "PENDING";
 
   const queryClient = useQueryClient();
   const [userInfo, setUserInfo] = useState<any>(null);
@@ -63,7 +63,7 @@ function MobileSiteWorkListContent() {
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("token");
       if (token) {
-        try { setUserInfo(JSON.parse(atob(token.split('.')[1]))); } catch (e) {}
+        try { setUserInfo(JSON.parse(atob(token.split('.')[1]))); } catch (e) { }
       }
     }
   }, []);
@@ -77,9 +77,9 @@ function MobileSiteWorkListContent() {
   const queryParams = useMemo(() => {
     if (!siteId) return null;
     const targetStatus = activeTab === "PENDING" ? "PENDING,CANCELED" : activeTab;
-    const p: any = { 
-      workSiteId: siteId, 
-      status: targetStatus, 
+    const p: any = {
+      workSiteId: siteId,
+      status: targetStatus,
       sort: sortOption
     };
     if (keyword) p.keyword = keyword;
@@ -128,7 +128,7 @@ function MobileSiteWorkListContent() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ itemId, status }: { itemId: number; status: string }) => {
       return await axios.patch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000"}/api/work-items/${itemId}/status`, 
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000"}/api/work-items/${itemId}/status`,
         { status }, { headers: getAuthHeaders() }
       );
     },
@@ -157,7 +157,7 @@ function MobileSiteWorkListContent() {
       await Promise.all(
         newOrder.map((item, index) =>
           axios.patch(
-            `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000"}/api/work-items/${item.id}/order`, 
+            `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000"}/api/work-items/${item.id}/order`,
             { routeOrder: index + 1 }, { headers: getAuthHeaders() }
           )
         )
@@ -174,9 +174,9 @@ function MobileSiteWorkListContent() {
 
     const newOrder = [...localItems];
     const swapIndex = direction === "up" ? index - 1 : index + 1;
-    
+
     [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
-    
+
     handleReorder(newOrder);
   };
 
@@ -206,7 +206,7 @@ function MobileSiteWorkListContent() {
         <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
           <form onSubmit={handleSearchSubmit} className="flex gap-2">
             <div className="relative flex-1">
-              <input 
+              <input
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
@@ -233,10 +233,10 @@ function MobileSiteWorkListContent() {
       </header>
 
       <main className="mx-auto w-full max-w-md py-4">
-        
+
         {/* 💡 목록 바로 위 정렬 선택 버튼 추가 */}
         <div className="flex justify-end px-4 mb-3">
-          <button 
+          <button
             onClick={() => setIsSortModalOpen(true)}
             className="flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-800 bg-white px-2.5 py-1.5 rounded-lg border border-gray-200 shadow-sm"
           >
@@ -254,13 +254,13 @@ function MobileSiteWorkListContent() {
           <div className="bg-white shadow-sm border-y border-gray-200 md:border-x md:rounded-2xl">
             <div>
               {localItems.map((item: any, index: number) => (
-                <StaticListItem 
-                  key={item.id} 
-                  item={item} 
+                <StaticListItem
+                  key={item.id}
+                  item={item}
                   index={index}
                   totalItems={localItems.length}
-                  activeTab={activeTab} 
-                  mobileFields={mobileFields} 
+                  activeTab={activeTab}
+                  mobileFields={mobileFields}
                   onSwipeAction={() => handleSwipeAction(item.id, item.status)}
                   onComplete={() => handleCompleteTask(item.id)}
                   onCancel={() => handleCancelTask(item.id)}
@@ -269,7 +269,7 @@ function MobileSiteWorkListContent() {
                 />
               ))}
             </div>
-            
+
             <div ref={loadMoreRef} className="py-6 text-center">
               {isFetchingNextPage && <Loader2 className="animate-spin text-blue-600 mx-auto" size={24} />}
             </div>
@@ -279,11 +279,11 @@ function MobileSiteWorkListContent() {
 
       {/* 💡 모바일 정렬 팝업(Bottom Sheet 스타일) */}
       {isSortModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
           onClick={() => setIsSortModalOpen(false)}
         >
-          <div 
+          <div
             className="w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-5 animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95"
             onClick={(e) => e.stopPropagation()}
           >
@@ -301,11 +301,10 @@ function MobileSiteWorkListContent() {
                     setSortOption(value);
                     setIsSortModalOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors ${
-                    sortOption === value 
-                      ? 'bg-blue-50 text-blue-600' 
+                  className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors ${sortOption === value
+                      ? 'bg-blue-50 text-blue-600'
                       : 'text-gray-700 hover:bg-gray-50'
-                  }`}
+                    }`}
                 >
                   {label}
                 </button>
@@ -322,7 +321,7 @@ function StaticListItem({ item, index, totalItems, activeTab, mobileFields, onSw
   const router = useRouter();
   const isCanceled = item.status === 'CANCELED';
 
-  const swipeConfig = activeTab === "PENDING" 
+  const swipeConfig = activeTab === "PENDING"
     ? { swipeText: "작업시작", swipeColor: "#2563eb", icon: <Play size={24} /> }
     : { swipeText: "대기로", swipeColor: "#ea580c", icon: <RotateCcw size={24} /> };
 
@@ -331,7 +330,7 @@ function StaticListItem({ item, index, totalItems, activeTab, mobileFields, onSw
     .filter((f: any) => f.val && String(f.val).trim() !== "");
 
   const content = (
-    <div 
+    <div
       onClick={() => {
         if (!isCanceled) {
           router.push(`/app/works/items/${item.id}`);
@@ -351,56 +350,80 @@ function StaticListItem({ item, index, totalItems, activeTab, mobileFields, onSw
               </span>
             )}
           </div>
-          
+
           <div className="flex flex-col gap-0.5">
             {validFields.length > 0 ? (
               validFields.map((f: any, idx: number) => {
+                // 💡 필드명에 '연락처'가 포함되어 있는지 확인
+                const isPhoneNumber = f.key.includes("연락처") && f.val;
+
                 if (idx === 0) {
                   return (
                     <h3 key={f.key} className="text-[17px] font-black text-gray-900 leading-snug">
-                      {f.val}
+                      {isPhoneNumber ? (
+                        <a
+                          href={`tel:${f.val}`}
+                          onClick={(e) => e.stopPropagation()} // 💡 상세 페이지 이동 방지
+                          className="text-blue-600 underline active:text-blue-800"
+                        >
+                          {f.val}
+                        </a>
+                      ) : (
+                        f.val
+                      )}
                     </h3>
                   );
                 }
+
                 return (
                   <p key={f.key} className="text-sm font-medium text-gray-600 break-keep pr-2">
-                    {f.val}
+                    {isPhoneNumber ? (
+                      <a
+                        href={`tel:${f.val}`}
+                        onClick={(e) => e.stopPropagation()} // 💡 상세 페이지 이동 방지
+                        className="text-blue-600 underline active:text-blue-800 inline-block py-0.5"
+                      >
+                        {f.val}
+                      </a>
+                    ) : (
+                      f.val
+                    )}
                   </p>
                 );
               })
             ) : null}
-            <h2> {item.workDate?`작업일 : ${item.workDate}`:''}</h2>
+            <h2> {item.workDate ? `작업일 : ${item.workDate}` : ''}</h2>
           </div>
         </div>
-        
+
         {activeTab === "IN_PROGRESS" && !isCanceled && (
           <div className="flex items-center gap-1.5 shrink-0" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-gray-50 mr-1 shadow-sm">
-              <button 
-                onClick={onMoveUp} 
-                disabled={index === 0} 
+              <button
+                onClick={onMoveUp}
+                disabled={index === 0}
                 className="flex items-center justify-center p-1.5 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-gray-50 transition"
               >
                 <ChevronUp size={16} />
               </button>
               <div className="h-px bg-gray-200 w-full" />
-              <button 
-                onClick={onMoveDown} 
-                disabled={index === totalItems - 1} 
+              <button
+                onClick={onMoveDown}
+                disabled={index === totalItems - 1}
                 className="flex items-center justify-center p-1.5 hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-gray-50 transition"
               >
                 <ChevronDown size={16} />
               </button>
             </div>
 
-            <button 
+            <button
               onClick={onCancel}
               className="flex flex-col items-center justify-center w-12 h-14 rounded-xl border border-red-200 text-red-500 bg-red-50/50 hover:bg-red-100 transition shadow-sm"
             >
               <Trash2 size={18} />
               <span className="text-[10px] font-bold mt-1">취소</span>
             </button>
-            <button 
+            <button
               onClick={onComplete}
               className="flex flex-col items-center justify-center w-12 h-14 rounded-xl border border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-100 transition shadow-sm"
             >
@@ -413,7 +436,7 @@ function StaticListItem({ item, index, totalItems, activeTab, mobileFields, onSw
 
       {activeTab === "IN_PROGRESS" && !isCanceled && item.latitude && item.longitude && (
         <div className="mt-4" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-          <a 
+          <a
             onClick={(e) => {
               e.preventDefault();
               openKakaoNavi(item.roadAddress, item.longitude ?? "", item.latitude ?? "");
