@@ -254,8 +254,7 @@ export default function WorkItemDetailPage() {
             return updated;
         });
     };
-
-    // 💡 개별 이미지 다운로드 핸들러 (에디터 대신 들어가는 기능)
+    // 💡 개별 이미지 다운로드 핸들러 (캐시 우회 및 S3 직접 접근용으로 수정)
     const handleDownloadImage = async (imageUrl: string, fileName: string) => {
         try {
             if (imageUrl.startsWith("data:")) {
@@ -265,9 +264,16 @@ export default function WorkItemDetailPage() {
                 link.download = fileName || "image.png";
                 link.click();
             } else {
-                // 원격 URL인 경우 fetch로 가져와서 다운로드 유도
-                const response = await fetch(imageUrl, { headers: getAuthHeaders() });
+                // 💡 핵심 1: URL 끝에 타임스탬프를 붙여서 브라우저 캐시 무시 (새로 불러오기 강제)
+                const separator = imageUrl.includes("?") ? "&" : "?";
+                const cacheBustingUrl = `${imageUrl}${separator}t=${new Date().getTime()}`;
+
+                // 💡 핵심 2: headers: getAuthHeaders() 제거 
+                // (S3는 우리 백엔드가 아니므로 토큰을 보내면 OPTIONS Preflight 에러가 발생할 수 있습니다)
+                const response = await fetch(cacheBustingUrl);
+                
                 if (!response.ok) throw new Error("이미지 다운로드 실패");
+                
                 const blob = await response.blob();
                 const blobUrl = window.URL.createObjectURL(blob);
                 const link = document.createElement("a");
