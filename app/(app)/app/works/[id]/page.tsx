@@ -355,7 +355,7 @@ function StaticListItem({ item, index, totalItems, activeTab, mobileFields, onSw
             {validFields.length > 0 ? (
               validFields.map((f: any, idx: number) => {
                 // 💡 필드명에 '연락처'가 포함되어 있는지 확인
-                const isPhoneNumber = f.key.includes("연락처") && f.val;
+                const isPhoneNumber = f.key.includes("회장") && f.val;
 
                 if (idx === 0) {
                   return (
