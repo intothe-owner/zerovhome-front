@@ -4,15 +4,11 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import {
     ArrowLeft, FileText, CheckCircle2,
-    Save, RotateCcw, PenTool, Pen, X,
+    Save, RotateCcw, PenTool, X,
     Download, Image as ImageIcon, Camera, Loader2
 } from "lucide-react";
-
-// SSR 환경에서 Canvas 관련 에러 방지를 위해 dynamic import 사용
-const FilerobotImageEditor = dynamic(() => import("react-filerobot-image-editor"), { ssr: false });
 
 // 파일 용량 변환 포맷 함수 (Bytes -> KB, MB)
 const formatBytes = (bytes: number, decimals = 2) => {
@@ -48,9 +44,8 @@ export default function WorkItemDetailPage() {
     const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
     const [imageAnswers, setImageAnswers] = useState<Record<string, string>>({});
 
-    // 이미지 용량 및 에디터 관련 상태
+    // 이미지 용량
     const [imageSizes, setImageSizes] = useState<Record<string, string>>({});
-    const [editImageTarget, setEditImageTarget] = useState<{ key: string, url: string } | null>(null);
 
     const [surveyAnswers, setSurveyAnswers] = useState<Record<string, any>>({});
     const [surveyForm, setSurveyForm] = useState<any>(null);
@@ -260,69 +255,33 @@ export default function WorkItemDetailPage() {
         });
     };
 
-    // 이미지 편집기 열기
-    const handleOpenImageEditor = async (
-        key: string,
-        imageUrl: string
-    ) => {
+    // 💡 개별 이미지 다운로드 핸들러 (에디터 대신 들어가는 기능)
+    const handleDownloadImage = async (imageUrl: string, fileName: string) => {
         try {
             if (imageUrl.startsWith("data:")) {
-                setEditImageTarget({
-                    key,
-                    url: imageUrl,
-                });
-                return;
+                // Base64인 경우 직접 다운로드
+                const link = document.createElement("a");
+                link.href = imageUrl;
+                link.download = fileName || "image.png";
+                link.click();
+            } else {
+                // 원격 URL인 경우 fetch로 가져와서 다운로드 유도
+                const response = await fetch(imageUrl, { headers: getAuthHeaders() });
+                if (!response.ok) throw new Error("이미지 다운로드 실패");
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = blobUrl;
+                link.download = fileName || "image.jpg";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobUrl);
             }
-
-            const separator = imageUrl.includes("?") ? "&" : "?";
-            const cacheBustingUrl =
-                `${imageUrl}${separator}editor=${Date.now()}`;
-
-            const response = await fetch(cacheBustingUrl, {
-                method: "GET",
-                mode: "cors",
-                cache: "no-store",
-            });
-
-            if (!response.ok) {
-                throw new Error(
-                    `이미지 요청 실패: ${response.status} ${response.statusText}`
-                );
-            }
-
-            const blob = await response.blob();
-            const reader = new FileReader();
-
-            reader.onloadend = () => {
-                setEditImageTarget({
-                    key,
-                    url: reader.result as string,
-                });
-            };
-
-            reader.onerror = () => {
-                alert("이미지 변환에 실패했습니다.");
-            };
-
-            reader.readAsDataURL(blob);
         } catch (error) {
-            console.error("이미지 편집기 실행 실패:", error);
-            alert(
-                "이미지를 편집기로 불러오지 못했습니다.\n" +
-                "브라우저 캐시를 삭제한 후 다시 시도해 주세요."
-            );
+            console.error("이미지 다운로드 에러:", error);
+            alert("이미지를 다운로드하는 중 오류가 발생했습니다.");
         }
-    };
-
-    const handleSaveEditedImage = (editedImageObject: any) => {
-        const newBase64 = editedImageObject.imageBase64;
-        const key = editImageTarget?.key;
-        if (key) {
-            setImageAnswers(prev => ({ ...prev, [key]: newBase64 }));
-            const newSizeStr = formatBytes(getBase64Size(newBase64));
-            setImageSizes(prev => ({ ...prev, [key]: newSizeStr }));
-        }
-        setEditImageTarget(null);
     };
 
     const handleTextChange = (fieldName: string, value: string) => {
@@ -433,11 +392,22 @@ export default function WorkItemDetailPage() {
                     <h3 className="text-lg font-bold text-slate-800 border-b pb-2">고객 상세 정보</h3>
                     <div className="space-y-1.5 max-h-36 overflow-y-auto pr-2">
                         {detailFields.length === 0 && <p className="text-sm text-slate-400">설정된 상세 항목이 없습니다.</p>}
-                        {detailFields.map((field: string) => (
-                            <p key={field} className="text-sm text-slate-700">
-                                <b className="text-slate-400">{field}:</b> {item.rowData?.[field] ?? "-"}
-                            </p>
-                        ))}
+                        {detailFields.map((field: string) => {
+                            const value = item.rowData?.[field];
+                            const isPhoneNumber = field.includes("연락처") && value;
+                            return (
+                                <p key={field} className="text-sm text-slate-700">
+                                    <b className="text-slate-400">{field}:</b>{' '}
+                                    {isPhoneNumber ? (
+                                        <a href={`tel:${value}`} className="text-blue-600 underline hover:text-blue-800">
+                                            {value}
+                                        </a>
+                                    ) : (
+                                        value ?? "-"
+                                    )}
+                                </p>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
@@ -451,7 +421,6 @@ export default function WorkItemDetailPage() {
                 {item?.reportResult ? (
                     <div className="flex flex-wrap gap-3">
                         <button
-                            // 💡 파일명 파라미터에 동적 변수인 downloadFileName 적용
                             onClick={() => handleDownloadPdf(`${API_BASE_URL}/api/work-items/${itemId}/pdf`, downloadFileName)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 font-bold border border-red-200 rounded-xl hover:bg-red-100 hover:border-red-300 transition shadow-sm cursor-pointer"
                         >
@@ -474,7 +443,6 @@ export default function WorkItemDetailPage() {
                                 <div key={idx} className={`space-y-1.5 ${isFull ? 'md:col-span-2' : ''}`}>
                                     <label className="block text-sm font-bold text-slate-700">
                                         {field.name}
-                                        {/* 자동입력/고정값이 매핑된 경우 사용자에게 라벨 표시 */}
                                         {field.isAutoFill && (
                                             <span className="ml-2 text-xs font-medium text-indigo-500">
                                                 (자동입력)
@@ -513,7 +481,7 @@ export default function WorkItemDetailPage() {
                 </div>
             )}
 
-            {/* 💡 현장 사진 첨부 (SPLIT, HALF, FULL 레이아웃 동적 렌더링) */}
+            {/* 현장 사진 첨부 */}
             {imageFields.length > 0 && (
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                     <h3 className="text-lg font-bold text-slate-800 border-b pb-3">현장 사진 첨부 {activeCategory && `(${activeCategory})`}</h3>
@@ -522,7 +490,6 @@ export default function WorkItemDetailPage() {
                             const isHalf = field.layout === 'HALF';
                             const isSplit = field.layout === 'SPLIT';
 
-                            // 레이아웃에 맞춰 슬롯 구성
                             let slots: { name: string, titleSuffix: string, colSpan: string }[] = [];
 
                             if (isHalf) {
@@ -536,7 +503,6 @@ export default function WorkItemDetailPage() {
                                     { name: field.name2, titleSuffix: "", colSpan: "col-span-1" }
                                 ];
                             } else {
-                                // FULL
                                 slots = [
                                     { name: field.name, titleSuffix: "", colSpan: "md:col-span-2" }
                                 ];
@@ -551,7 +517,7 @@ export default function WorkItemDetailPage() {
                                 return (
                                     <div key={fieldKey} className={`p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 ${slot.colSpan}`}>
                                         <label className="block text-sm font-bold text-slate-700">
-                                            {subKeyName} {slot.titleSuffix && <span className="text-xs text-indigo-600 font-normal ml-1">{slot.titleSuffix}</span>}
+                                            {subKeyName} {slot.titleSuffix && <span className="text-xs text-indigo-600 font-normal ml-1">{slot.titleSuffix}1</span>}
                                         </label>
 
                                         <div className="border-2 border-dashed border-slate-300 rounded-xl p-2 bg-white hover:border-indigo-500 transition relative flex flex-col items-center justify-center overflow-hidden h-44 group">
@@ -564,22 +530,19 @@ export default function WorkItemDetailPage() {
                                                         {currentSize || "용량 계산 중..."}
                                                     </div>
 
-                                                    {/* 버튼 컨테이너 (이벤트 전파 방지 포함) */}
+                                                    {/* 버튼 컨테이너 */}
                                                     <div className="absolute top-2 right-2 flex items-center gap-2 z-50">
+                                                        {/* 💡 에디터 버튼을 다운로드 버튼으로 교체 */}
                                                         <button
                                                             type="button"
-                                                            onClick={async (e) => {
+                                                            onClick={(e) => {
                                                                 e.preventDefault();
                                                                 e.stopPropagation();
-
-                                                                await handleOpenImageEditor(
-                                                                    fieldKey,
-                                                                    currentImg
-                                                                );
+                                                                handleDownloadImage(currentImg, `${subKeyName}.png`);
                                                             }}
                                                             className="flex items-center justify-center w-9 h-9 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition active:scale-90"
                                                         >
-                                                            <Pen size={16} />
+                                                            <Download size={16} />
                                                         </button>
 
                                                         <button
@@ -658,261 +621,6 @@ export default function WorkItemDetailPage() {
                             </div>
                         ))}
                     </div>
-                </div>
-            )}
-
-            {/* 서명 영역 */}
-            {/* <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                <h3 className="text-lg font-bold text-slate-800 border-b pb-3">고객 확인 서명</h3>
-
-                <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="flex items-center gap-3 text-sm font-bold text-slate-700 flex-wrap">
-                        <div className="flex items-center gap-1.5">
-                            <input
-                                type="text"
-                                value={signYear}
-                                onChange={(e) => setSignYear(e.target.value)}
-                                className="w-16 px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-center font-bold text-slate-800 shadow-sm"
-                            />
-                            <span>년</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <input
-                                type="text"
-                                value={signMonth}
-                                onChange={(e) => setSignMonth(e.target.value)}
-                                className="w-12 px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-center font-bold text-slate-800 shadow-sm"
-                            />
-                            <span>월</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <input
-                                type="text"
-                                value={signDay}
-                                onChange={(e) => setSignDay(e.target.value)}
-                                className="w-12 px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-center font-bold text-slate-800 shadow-sm"
-                            />
-                            <span>일</span>
-                        </div>
-
-                        <div className="flex items-center gap-2 ml-2 md:ml-6">
-                            <span>성명:</span>
-                            <input
-                                type="text"
-                                value={signName}
-                                onChange={(e) => setSignName(e.target.value)}
-                                placeholder="성명 입력"
-                                className="w-32 px-3 py-1.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 shadow-sm"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 mt-4 md:mt-0">
-                        {signatureUrl ? (
-                            <div className="flex items-center gap-3 bg-white border border-slate-300 px-4 py-2 rounded-xl shadow-sm">
-                                <img src={signatureUrl} alt="서명" className="h-10 object-contain" />
-                                <button onClick={() => setIsSignModalOpen(true)} className="text-xs font-bold text-indigo-600 hover:underline">
-                                    재서명
-                                </button>
-                                <button onClick={() => setSignatureUrl("")} className="text-xs font-bold text-red-500 hover:underline ml-2">
-                                    삭제
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => setIsSignModalOpen(true)}
-                                className="flex items-center gap-1.5 px-6 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 transition shadow-sm text-sm"
-                            >
-                                <PenTool size={16} /> 서명하기
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div> */}
-
-            {/* 이미지 편집기 모달 */}
-            {editImageTarget && (
-                <div className="fixed inset-0 z-[60] bg-black flex flex-col">
-                    <FilerobotImageEditor
-                        source={editImageTarget.url}
-                        onSave={(editedImageObject, designState) =>
-                            handleSaveEditedImage(editedImageObject)
-                        }
-                        onClose={() => setEditImageTarget(null)}
-
-                        annotationsCommon={{
-                            fill: "#ff0000",
-                        }}
-
-                        Text={{
-                            text: "이곳에 텍스트를 입력하세요",
-                        }}
-
-                        tabsIds={[
-                            "Adjust",
-                            "Annotate",
-                            "Watermark",
-                            "Filters",
-                            "Finetune",
-                        ]}
-                        defaultTabId="Annotate"
-                        defaultToolId="Text"
-
-                        savingPixelRatio={1}
-                        previewPixelRatio={1}
-
-                        /* 외부 번역 서버를 사용하지 않고 아래 번역을 사용 */
-                        useBackendTranslations={false}
-                        language="ko"
-
-                        theme={{
-                            typography: {
-                                fontFamily: '"Noto Sans KR", sans-serif',
-                            },
-                        }}
-
-                        translations={{
-                            /* 상단 공통 버튼 */
-                            name: "파일 이름",
-                            save: "저장",
-                            saveAs: "다른 이름으로 저장",
-                            back: "뒤로",
-                            loading: "불러오는 중...",
-                            cancel: "취소",
-                            apply: "적용",
-                            warning: "경고",
-                            confirm: "확인",
-                            discardChanges: "변경사항 삭제",
-
-                            /* 초기화 및 종료 경고 */
-                            resetOperations: "모든 편집 초기화",
-                            changesLoseWarningHint:
-                                "초기화하면 지금까지 편집한 내용이 삭제됩니다. 계속하시겠습니까?",
-                            discardChangesWarningHint:
-                                "편집 내용을 저장하지 않고 닫으시겠습니까?",
-
-                            /* 실행 취소 및 화면 조작 */
-                            undoTitle: "실행 취소",
-                            redoTitle: "다시 실행",
-                            showImageTitle: "원본 이미지 보기",
-                            zoomInTitle: "확대",
-                            zoomOutTitle: "축소",
-                            toggleZoomMenuTitle: "확대·축소 메뉴",
-
-                            /* 왼쪽 탭 메뉴 */
-                            adjustTab: "자르기·크기·회전",
-                            finetuneTab: "세부 조정",
-                            filtersTab: "필터",
-                            watermarkTab: "워터마크",
-                            annotateTabLabel: "그리기·텍스트",
-                            resizeTab: "크기 변경",
-                            resize: "크기 변경",
-
-                            /* 자르기 */
-                            cropTool: "자르기",
-                            original: "원본",
-                            custom: "사용자 지정",
-                            square: "정사각형",
-                            landscape: "가로형",
-                            portrait: "세로형",
-                            ellipse: "타원형",
-                            classicTv: "기본 화면",
-                            cinemascope: "와이드 화면",
-
-                            /* 그리기 도구 */
-                            arrowTool: "화살표",
-                            blurTool: "흐리게",
-                            ellipseTool: "타원",
-                            imageTool: "이미지",
-                            lineTool: "직선",
-                            penTool: "펜",
-                            polygonTool: "다각형",
-                            rectangleTool: "사각형",
-                            rotateTool: "회전",
-                            textTool: "텍스트",
-
-                            /* 세부 조정 도구 */
-                            brightnessTool: "밝기",
-                            contrastTool: "대비",
-                            warmthTool: "색온도",
-                            hsvTool: "색상 조정",
-                            hue: "색조",
-                            brightness: "밝기",
-                            saturation: "채도",
-                            value: "명도",
-
-                            /* 좌우·상하 반전 */
-                            flipX: "좌우 반전",
-                            unFlipX: "좌우 반전 해제",
-                            flipY: "상하 반전",
-                            unFlipY: "상하 반전 해제",
-
-                            /* 이미지 추가 */
-                            importing: "가져오는 중...",
-                            addImage: "+ 이미지 추가",
-                            uploadImage: "이미지 업로드",
-                            fromGallery: "갤러리에서 선택",
-                            addImageTitle: "추가할 이미지 선택",
-                            mutualizedFailedToLoadImg: "이미지를 불러오지 못했습니다.",
-
-                            /* 도형 설정 */
-                            sides: "면 개수",
-                            cornerRadius: "모서리 둥글기",
-                            stroke: "테두리",
-                            opacity: "불투명도",
-                            transparency: "투명도",
-                            position: "위치",
-                            shadow: "그림자",
-                            horizontal: "가로",
-                            vertical: "세로",
-                            blur: "흐림",
-
-                            /* 텍스트 설정 */
-                            textSpacings: "텍스트 간격",
-                            textAlignment: "텍스트 정렬",
-                            fontFamily: "글꼴",
-                            size: "크기",
-                            letterSpacing: "글자 간격",
-                            lineHeight: "줄 간격",
-
-                            /* 크기 조정 */
-                            resizeWidthTitle: "가로 크기(px)",
-                            resizeHeightTitle: "세로 크기(px)",
-                            toggleRatioLockTitle: "가로세로 비율 고정",
-                            resetSize: "원본 크기로 초기화",
-                            width: "가로",
-                            height: "세로",
-
-                            /* 워터마크 */
-                            addWatermark: "+ 워터마크 추가",
-                            addTextWatermark: "+ 텍스트 워터마크",
-                            addWatermarkTitle: "워터마크 종류 선택",
-                            uploadWatermark: "워터마크 이미지 업로드",
-                            addWatermarkAsText: "텍스트로 추가",
-                            padding: "여백",
-                            paddings: "여백",
-
-                            /* 저장 화면 */
-                            saveAsModalTitle: "이미지 저장",
-                            imageName: "이미지 이름",
-                            extension: "파일 확장자",
-                            format: "파일 형식",
-                            quality: "이미지 품질",
-                            nameIsRequired: "파일 이름을 입력해 주세요.",
-                            imageDimensionsHoverTitle: "저장 이미지 크기",
-                            actualSize: "실제 크기(100%)",
-                            fitSize: "화면에 맞추기",
-                            download: "다운로드",
-                            tabsMenu: "메뉴",
-
-                            /* 오류 */
-                            invalidImageError: "올바르지 않은 이미지입니다.",
-                            uploadImageError: "이미지 업로드 중 오류가 발생했습니다.",
-                            areNotImages: "이미지 파일이 아닙니다.",
-                            isNotImage: "이미지 파일이 아닙니다.",
-                            toBeUploaded: "업로드 예정",
-                        }}
-                    />
                 </div>
             )}
             
