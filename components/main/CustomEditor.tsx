@@ -78,6 +78,41 @@ export default function CustomEditor({ value, onChange, onImageAttach, placehold
     }
   };
 
+  // 다른 사이트 이미지 복사/붙여넣기 시 엑박 방지 로직
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const clipboardItems = e.clipboardData?.items;
+    if (!clipboardItems) return;
+
+    for (let i = 0; i < clipboardItems.length; i++) {
+      const item = clipboardItems[i];
+      
+      // 클립보드 데이터가 이미지인 경우
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault(); // 기본 붙여넣기 동작 방지
+        
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        const id = `img_${Date.now()}_${i}`;
+        const blobUrl = URL.createObjectURL(file);
+        
+        editorRef.current?.focus();
+        document.execCommand(
+          'insertHTML', 
+          false, 
+          `<img src="${blobUrl}" data-file-id="${id}" style="display: inline-block; max-width: 100%; border-radius: 8px;" />`
+        );
+        
+        if (editorRef.current) onChange(editorRef.current.innerHTML);
+        
+        // 부모 컴포넌트로 파일 전달
+        onImageAttach(file, id);
+        
+        return; // 이미지 처리 완료 후 종료
+      }
+    }
+  };
+
   const updateResizerBox = (img: HTMLImageElement) => {
     const container = editorRef.current;
     if (!container) return;
@@ -88,15 +123,11 @@ export default function CustomEditor({ value, onChange, onImageAttach, placehold
       el: img,
       width: iRect.width,
       height: iRect.height,
-      // 선택 상자는 스크롤 영역 밖의 오버레이이므로 현재 화면 좌표를 사용한다.
-      // scrollTop/scrollLeft를 더하면 스크롤한 만큼 손잡이가 이미지에서 벗어난다.
       top: iRect.top - cRect.top,
       left: iRect.left - cRect.left
     });
   };
 
-  // 일반적인 편집기처럼 드래그한 손잡이의 반대편을 고정점으로 사용한다.
-  // 모서리는 원본 비율을 유지하고, 변 손잡이는 해당 축만 변경한다.
   const startDragResize = (e: React.MouseEvent, direction: 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'w' | 'e') => {
     e.preventDefault();
     e.stopPropagation();
@@ -113,7 +144,6 @@ export default function CustomEditor({ value, onChange, onImageAttach, placehold
     const startTop = Number.parseFloat(img.style.top || '0') || 0;
     const minSize = 30;
 
-    // left/top 보정이 실제 이미지에 적용되도록 기준 위치를 만든다.
     img.style.position = 'relative';
 
     const onMouseMove = (moveEvent: MouseEvent) => {
@@ -125,49 +155,38 @@ export default function CustomEditor({ value, onChange, onImageAttach, placehold
       let newLeft = startLeft;
       let newTop = startTop;
 
-      // 포인터 이동을 이미지 대각선에 투영해 가로·세로 어느 방향으로
-      // 모서리를 끌어도 자연스럽게 비율이 유지되도록 한다.
       const diagonalWidthDelta = (xSign: 1 | -1, ySign: 1 | -1) =>
         ((xSign * deltaX * startWidth) + (ySign * deltaY * startHeight)) *
         startWidth / (startWidth ** 2 + startHeight ** 2);
 
       if (direction === 'e') {
-        // 오른쪽 드래그: 왼쪽이 고정되고 너비만 늘어남
         newWidth = startWidth + deltaX;
       } else if (direction === 'w') {
-        // 왼쪽 드래그: 오른쪽이 고정되도록 너비 조절
         newWidth = startWidth - deltaX;
         newLeft = startLeft + (startWidth - newWidth);
       } else if (direction === 's') {
-        // 아래쪽 드래그: 위쪽이 고정되고 높이만 늘어남
         newHeight = startHeight + deltaY;
       } else if (direction === 'n') {
-        // 위쪽 드래그: 아래쪽이 고정되도록 높이 조절
         newHeight = startHeight - deltaY;
         newTop = startTop + (startHeight - newHeight);
       } else if (direction === 'se') {
-        // 우하단 모서리: 좌상단 고정
         newWidth = startWidth + diagonalWidthDelta(1, 1);
         newHeight = newWidth * ratio;
       } else if (direction === 'sw') {
-        // 좌하단 모서리: 우상단 고정
         newWidth = startWidth + diagonalWidthDelta(-1, 1);
         newHeight = newWidth * ratio;
         newLeft = startLeft + (startWidth - newWidth);
       } else if (direction === 'ne') {
-        // 우상단 모서리: 좌하단 고정
         newWidth = startWidth + diagonalWidthDelta(1, -1);
         newHeight = newWidth * ratio;
         newTop = startTop + (startHeight - newHeight);
       } else if (direction === 'nw') {
-        // 좌상단 모서리: 우하단 고정
         newWidth = startWidth + diagonalWidthDelta(-1, -1);
         newHeight = newWidth * ratio;
         newLeft = startLeft + (startWidth - newWidth);
         newTop = startTop + (startHeight - newHeight);
       }
 
-      // 최소 크기에서 멈추며 고정점이 튀지 않도록 좌표도 함께 다시 계산한다.
       if (newWidth < minSize) {
         newWidth = minSize;
         if (direction.includes('w')) newLeft = startLeft + startWidth - minSize;
@@ -197,7 +216,6 @@ export default function CustomEditor({ value, onChange, onImageAttach, placehold
   const handleAlignment = (align: 'left' | 'center' | 'right') => {
     if (resizer) {
       const img = resizer.el;
-      // 정렬을 바꾸면 리사이즈 중 사용한 위치 보정을 초기화한다.
       img.style.left = '0px';
       img.style.top = '0px';
       if (align === 'center') {
@@ -284,6 +302,7 @@ export default function CustomEditor({ value, onChange, onImageAttach, placehold
           onInput={(e) => onChange(e.currentTarget.innerHTML)}
           onClick={handleEditorClick}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           className="w-full h-[500px] overflow-y-auto p-5 outline-none text-slate-800 leading-relaxed empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400"
           style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', position: 'relative' }}
           data-placeholder={placeholder}
