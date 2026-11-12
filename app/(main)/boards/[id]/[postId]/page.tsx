@@ -8,8 +8,12 @@ import PostActionButtons from './PostActionButtons'; // 경로에 맞게 수정�
 
 const fetchPostDetail = async (boardId: string, postId: string) => {
   const [boardRes, postRes] = await Promise.all([
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/board-configs/${boardId}`),
-    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/boards/posts/${postId}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/board-configs/${boardId}`, {
+      credentials: 'include', // (선택) 설정 API도 쿠키가 필요하다면 추가
+    }),
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/boards/posts/${postId}`, {
+      credentials: 'include', // 💡 핵심: 게시글 상세 API 호출 시 쿠키를 주고받도록 설정
+    })
   ]);
   
   const postData = postRes.ok ? await postRes.json() : null;
