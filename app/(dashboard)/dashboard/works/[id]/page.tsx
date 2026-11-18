@@ -162,13 +162,13 @@ export default function MyWorkSiteDetailPage() {
 
                 {/* 💡 링크 경로를 대시보드(/dashboard/works/...)로 수정 */}
                 <div className="flex items-center gap-3">
-                    <Link
+                    {/* <Link
                         href={`/dashboard/works/${siteId}/survey`}
                         className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-semibold text-sm rounded-xl hover:bg-slate-50 hover:border-indigo-400 hover:text-indigo-600 transition shadow-sm"
                     >
                         <ClipboardList size={18} className="text-indigo-500" />
                         사전 실사 내역
-                    </Link>
+                    </Link> */}
                     <Link
                         href={`/dashboard/works/${siteId}/report-form`}
                         className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 font-semibold text-sm rounded-xl hover:bg-slate-50 hover:border-emerald-400 hover:text-emerald-600 transition shadow-sm"
