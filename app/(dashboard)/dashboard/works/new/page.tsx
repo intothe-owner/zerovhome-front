@@ -121,29 +121,6 @@ export default function NewWorkSitePage() {
             />
           </div>
 
-          {/* 주소 (기업 회원에게 필요한 위치 정보 - Daum 우편번호 확장용) */}
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-bold text-slate-700 mb-2">
-               <MapPin size={16} className="text-slate-400" />
-               현장 주소 (선택)
-            </label>
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                placeholder="도로명 또는 지번 주소를 입력하세요" 
-                value={address} 
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-medium text-slate-800"
-              />
-              <button 
-                type="button"
-                className="shrink-0 px-5 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 border border-slate-200 transition-colors"
-                onClick={() => alert("Daum 우편번호 검색 연동을 준비 중입니다.")}
-              >
-                주소 검색
-              </button>
-            </div>
-          </div>
           
           {/* 현장 설명 (기존 관리자 폼 스타일 반영) */}
           <div>
